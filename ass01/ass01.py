@@ -34,13 +34,16 @@ if __name__ == "__main__":
 
     # make a list of classes
     names = []
+    files = []
     for dep in dir:
         m = re.search('[A-Za-z]*(?=.java)',dep)
         names.append(m.group(0))
-        
+        f = File(m.group(0),0)
+        files.append(f)
+
     # for every file find the dependecies
-    for path in dir:
-        f = open(path, "r")
+    for i in range(len(dir)):
+        f = open(dir[i], "r")
         s = f.read()
         #g = re.findall('(?<=//)*(?<=import\s)[^;]*(?=;)', s)
         g = re.findall('(?=//).*(?=\n)',s)
@@ -51,11 +54,12 @@ if __name__ == "__main__":
         
         # find dependencies
         for n in names:
-            if re.search('(?<!(class\s))'+n,s) is not None:
-                print(n+" -> "+path)
+            a = re.search("(?<=new\s)"+n,s)
+            if a is not None:
+                print(a.group(0)+" -> "+files[i].filename)
         
-        #n = re.findall('(?<=import\s)[^;]*(?=;)', s)
-        #print(n)
+        n = re.findall('(?<=import\s)[^;]*(?=;)', s)
+        print(n)
         #m= re.findall('(?<=//).*import.*(?=;\n)', s)
         
         #print(m)
