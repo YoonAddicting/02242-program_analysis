@@ -46,12 +46,14 @@ if __name__ == "__main__":
         f = open(dir[i], "r")
         s = f.read()
         #g = re.findall('(?<=//)*(?<=import\s)[^;]*(?=;)', s)
-        g = re.findall('(?=//).*(?=\n)',s)
+        # Removed "?=" and (?=\n) as this seemed unnecessary. Before was: g = re.findall('(?=//).*(?=\n)',s) 
+        g = re.findall('//.*',s)
         # remove in-line comments
         for smth in g:
             s = s.replace(smth, '')
         # remove multiline comments
-        f = re.findall('\/\*.*\*\/',s,flags=re.DOTALL)
+        # changed .* in the middle of '/\*.*\*/' to .+?
+        f = re.findall('/\*.+?\*/',s,flags=re.DOTALL)
         for smth in f:
             s = s.replace(smth, '')
 
@@ -59,7 +61,7 @@ if __name__ == "__main__":
         for n in names:
             a = re.search("(?<=new\s)"+n,s)
             if a is not None:
-                print(a.group(0)+" -> "+files[i].filename)
+                print(a.group()+" -> "+files[i].filename)
         
         n = re.findall('(?<=import\s)[^;]*(?=;)', s)
         print(str(n)+" -> "+ files[i].filename)
