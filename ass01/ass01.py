@@ -38,7 +38,7 @@ if __name__ == "__main__":
     for dep in dir:
         m = re.search('[A-Za-z]*(?=.java)',dep)
         names.append(m.group(0))
-        f = File(m.group(0),0)
+        f = File(dep,0)
         files.append(f)
 
     # for every file find the dependecies
@@ -47,11 +47,13 @@ if __name__ == "__main__":
         s = f.read()
         #g = re.findall('(?<=//)*(?<=import\s)[^;]*(?=;)', s)
         g = re.findall('(?=//).*(?=\n)',s)
-        
         # remove in-line comments
         for smth in g:
             s = s.replace(smth, '')
-        
+        f = re.findall('\/\*[^\/]*',s)
+        for smth in f:
+            s = s.replace(smth, '')
+
         # find dependencies
         for n in names:
             a = re.search("(?<=new\s)"+n,s)
@@ -59,7 +61,8 @@ if __name__ == "__main__":
                 print(a.group(0)+" -> "+files[i].filename)
         
         n = re.findall('(?<=import\s)[^;]*(?=;)', s)
-        print(n)
+        print(str(n)+" -> "+ files[i].filename)
+        
         #m= re.findall('(?<=//).*import.*(?=;\n)', s)
         
         #print(m)
