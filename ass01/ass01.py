@@ -50,7 +50,8 @@ if __name__ == "__main__":
         # remove in-line comments
         for smth in g:
             s = s.replace(smth, '')
-        f = re.findall('\/\*[^\/]*',s)
+        # remove multiline comments
+        f = re.findall('\/\*.*\*\/',s,flags=re.DOTALL)
         for smth in f:
             s = s.replace(smth, '')
 
