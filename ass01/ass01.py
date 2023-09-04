@@ -27,7 +27,7 @@ def generate_viz_text(files_dict):
 
 
 if __name__ == "__main__":
-
+    res="digraph SourceGraph {"
     iterator = count(1)
     
     dir = glob.glob('**/*.java',recursive=True)
@@ -35,11 +35,17 @@ if __name__ == "__main__":
     # make a list of classes
     names = []
     files = []
+    
+    j=0
     for dep in dir:
+        
         m = re.search('[A-Za-z]*(?=.java)',dep)
         names.append(m.group(0))
-        f = File(dep,0)
+        f = File(dep,j)
         files.append(f)
+        d=dep.replace('\\','\\\\')
+        res=res+"\n"+str(j)+" [label=\""+d+"\"];"
+        j=j+1
 
     # for every file find the dependecies
     for i in range(len(dir)):
@@ -61,10 +67,16 @@ if __name__ == "__main__":
         for n in names:
             a = re.search("(?<=new\s)"+n,s)
             if a is not None:
-                print(a.group()+" -> "+files[i].filename)
+                l = a.group()
+                res=res+"\n"+str(j)+" [label=\""+l+"\"];"
+                res=res+"\n"+str(j)+" -> "+str(files[i].counter)+";"
+                j=j+1
         
         n = re.findall('(?<=import\s)[^;]*(?=;)', s)
-        print(str(n)+" -> "+ files[i].filename)
+        for l in n:
+            res=res+"\n"+str(j)+" [label=\""+l+"\"];"
+            res=res+"\n"+str(j)+" -> "+ str(files[i].counter)+";"
+            j=j+1
         
         #m= re.findall('(?<=//).*import.*(?=;\n)', s)
         
@@ -78,3 +90,13 @@ if __name__ == "__main__":
         #     #print(m.group(0))
         #     n = re.search('(?<=import\s).*(?=;)', s)
         #     #print(n.group(0))
+    """
+    f=open("graph.dot","w")
+    f.write(res)
+    f.write("}")
+    f.write("% well done")
+    f.close
+    """
+    print(res+"\n}")
+
+    

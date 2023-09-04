@@ -1,0 +1,19 @@
+digraph SourceGraph {
+0 [label="ass01.simple.Example.java"];
+1 [label="ass01.simple.Other.java"];
+2 [label="ass01.tricky.Tricky.java"];
+3 [label="ass01.util.Utils.java"];
+4 [label="Other"];
+4 -> 0;
+5 [label="dtu.deps.util.Utils"];
+5 -> 0;
+6 [label="Example"];
+6 -> 2;
+7 [label="Tricky"];
+7 -> 2;
+8 [label="dtu.deps.simple.*"];
+8 -> 2;
+9 [label="dtu.deps.util.*"];
+9 -> 2;
+10 [label="dtu.deps.simple.Other"];
+10 -> 2;}
