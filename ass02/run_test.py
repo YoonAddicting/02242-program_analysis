@@ -11,7 +11,7 @@ JAVA_LANGUAGE = Language(FILE, "java")
 parser = Parser()
 parser.set_language(JAVA_LANGUAGE)
 #with open("./test.java", "rb") as f:
-with open("./tests/simple/Example.java", "rb") as f:
+with open("./tests/tricky/Tricky.java", "rb") as f:
     tree = parser.parse(f.read())
 # the tree is now ready for analysing
 
@@ -20,7 +20,6 @@ with open("./tests/simple/Example.java", "rb") as f:
 
 class SyntaxFold:
   def visit(self, node):
-    print(node.type)
     for n in node.children:
        self.visit(n)
     if hasattr(self, node.type):
@@ -34,10 +33,7 @@ class SyntaxFold:
 
 class Printer(SyntaxFold):
   def default(self, node):
-    #print(node.type)
-    if node.type == 'type_identifier':
-       print("hello")
-    #print(f"{node} --> {node.text}")
+    print(f"{node} --> {node.text}")
 
 
 class File:

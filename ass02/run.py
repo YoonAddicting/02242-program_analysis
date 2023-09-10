@@ -5,7 +5,7 @@ from string import ascii_lowercase as alc
 from itertools import count
 from tree_sitter import Language, Parser
 from enum import Enum
-FILE = "languages.so" # the ./ is important
+FILE = "./languages.so" # the ./ is important
 Language.build_library(FILE, ["tree-sitter-java"])
 JAVA_LANGUAGE = Language(FILE, "java")
 
@@ -19,7 +19,7 @@ class TypeFold:
       self.visit(n, t, results)
     if hasattr(node, "type"):
         if getattr(node, "type") == t:
-            return results.append(self.default(node)) #getattr(self, node.type)(node, results, t)
+            return results.add(self.default(node)) #getattr(self, node.type)(node, results, t)
     else:
         return None   
   def default(self, node):
@@ -53,8 +53,8 @@ def make_nodes(dir, g):
     name = re.search('([A-Z].*)(?=.java)',dep).group()
     
     # aggregation (fields)
-    fields = []
-    methods = []
+    fields = set()
+    methods = set()
     field_txt = ""
     method_txt = ""
     Extractor().visit(tree.root_node, 'field_declaration', fields)
@@ -101,20 +101,22 @@ def make_edges(dir, g):
 
       f = open(dep, "r")
       s = f.read()
-      dependencies = []
+      dependencies = set()
       # inheritance (extends)
       Extractor().visit(tree.root_node, 'super_classes', dependencies)
       for dep in dependencies:
          s = re.search('(?<=extends\s).*', dep).group()
-         g.edge(name, s, "inheritance")
-      dependencies = []
+         if name != s:
+          g.edge(name, s, "inheritance")
+      dependencies = set()
 
       # realization (implements)   
       Extractor().visit(tree.root_node, 'super_interfaces', dependencies)
       for dep in dependencies:
          s = re.search('(?<=implements\s).*', dep).group()
-         g.edge(name, s, "realization")
-      dependencies = []
+         if name != s:
+          g.edge(name, s, "realization")
+      dependencies = set()
       
       # dependency (imports and dependecies)
       #   import_declaration
@@ -124,13 +126,16 @@ def make_edges(dir, g):
       #   type_identifier
       Extractor().visit(tree.root_node, 'type_identifier', dependencies)
       for dep in dependencies:
-         g.edge(name, dep, "dependency")
-      dependencies = []
+        if name != dep:
+          g.edge(name, dep, "dependency")
+
+      dependencies = set()
       #   method_invocation
       Extractor().visit(tree.root_node, 'method_invocation', dependencies)
       for dep in dependencies:
-         s = re.search('[A-Z].*(?=\.)', dep).group()
-         g.edge(s, name, "dependency")
+        s = re.search('[A-Z].*(?=\.)', dep).group()
+        if name != s:
+          g.edge(name, s, "dependency")
 
 if __name__ == "__main__":
     g = graphviz.Digraph()

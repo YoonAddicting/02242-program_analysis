@@ -5,7 +5,7 @@ package tests.tricky;
 // -> dtu.deps.simple.Example
 // -> dtu.deps.util.Utils
 
-import tests.simple.*; 
+import tests.simple.*;
 import tests.util.*;
 
 // This is never used in the file.

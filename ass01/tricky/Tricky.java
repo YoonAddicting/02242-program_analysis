@@ -9,7 +9,7 @@ import dtu.deps.simple.*;
 import dtu.deps.util.*;
 
 // This is never used in the file.
-import dtu.deps.simple.Other;
+//import dtu.deps.simple.Other;
 
 
 public class Tricky {
