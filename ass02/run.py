@@ -105,16 +105,22 @@ def make_edges(dir, g):
       # inheritance (extends)
       Extractor().visit(tree.root_node, 'super_classes', dependencies)
       for dep in dependencies:
-         s = re.search('(?<=extends\s).*', dep).group()
-         if name != s:
+        s0 = re.search('(?<=extends\s).*', dep)
+        if s0 is None:
+          continue
+        s = s0.group()
+        if name != s:
           g.edge(name, s, "inheritance")
       dependencies = set()
 
       # realization (implements)   
       Extractor().visit(tree.root_node, 'super_interfaces', dependencies)
       for dep in dependencies:
-         s = re.search('(?<=implements\s).*', dep).group()
-         if name != s:
+        s0 = re.search('(?<=implements\s).*', dep)
+        if s0 is None:
+          continue
+        s = s0.group() 
+        if name != s:
           g.edge(name, s, "realization")
       dependencies = set()
       
@@ -133,7 +139,10 @@ def make_edges(dir, g):
       #   method_invocation
       Extractor().visit(tree.root_node, 'method_invocation', dependencies)
       for dep in dependencies:
-        s = re.search('[A-Z].*(?=\.)', dep).group()
+        s0 = re.search('[A-Z].*(?=\.)', dep)
+        if s0 is None:
+          continue
+        s = s0.group()   
         if name != s:
           g.edge(name, s, "dependency")
 
@@ -141,7 +150,7 @@ if __name__ == "__main__":
     g = graphviz.Digraph()
     g.attr('node',shape='record')
     
-    dir = glob.glob('./tests/**/*.java',recursive=True)
+    dir = glob.glob('./course-02242-examples/src/dependencies/java/dtu/**/*.java',recursive=True)
 
     make_nodes(dir, g)
 
