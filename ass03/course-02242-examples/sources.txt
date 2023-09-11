@@ -1,0 +1,6 @@
+./src/dependencies/java/dtu/deps/util/Utils.java
+./src/dependencies/java/dtu/deps/tricky/Tricky.java
+./src/dependencies/java/dtu/deps/simple/Example.java
+./src/dependencies/java/dtu/deps/simple/Other.java
+./src/dependencies/java/dtu/deps/simple/OtherSuper.java
+./src/dependencies/java/dtu/deps/normal/Primes.java
