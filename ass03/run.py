@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     make_nodes(dir, g)
 
-    #make_edges(dir, g)
+    make_edges(dir, g)
     
     #test = json.loads(open(dir[0]).read())
     #print()
