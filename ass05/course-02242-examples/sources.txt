@@ -1,0 +1,6 @@
+./src/executables/java/dtu/compute/exec/Case.java
+./src/executables/java/eu/bogoe/dtu/exceptional/Arithmetics.java
+./src/executables/java/eu/bogoe/dtu/exceptional/Arrays.java
+./src/executables/java/eu/bogoe/dtu/exceptional/Null.java
+./src/executables/java/eu/bogoe/dtu/exceptional/NullArrays.java
+./src/executables/java/eu/bogoe/dtu/exceptional/Throws.java
