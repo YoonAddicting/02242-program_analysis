@@ -79,29 +79,202 @@ class Interpreter:
         self.stack.append((l, s, pc + 1))
         return True
 
-def abstract_args(m):
-    # TODO make abstract
-    return m
+def get_type(t):
+    try:
+        type=t.get('type')
+        k=t.get('kind')
+        return k+ " " +get_type(type)
+    except:
+        return t.get('base')
+    
+def abstract_args(method):
+    abstract_args = []
+    for param in method.get('params'):
+        # type = get_type(p.get('type'))
+        param_type=""
+        try:
+            param_type=param.get('type').get('base')
+        except:
+            # nested type
+            raise Exception("nested type")
+        match param_type:
+            case 'int':
+                abstract_args.append(('int',{'-','0','+'}))
+            case 'float':
+                abstract_args.append(('float',{'-','0','+'}))
+            case 'double':
+                abstract_args.append(('double',{'-','0','+'}))
+            case 'boolean':
+                abstract_args.append(('boolean',{'true','false'}))
+            case "":
+                continue
+            case _:
+                raise Exception(f"Undefined type: {param_type}")
+    return abstract_args
 
-def abstract_step(bytecode, instruction, pc):
+def abstract_step(bytecode, state, pc):
+    opr = bytecode[pc].get('opr')
+
+    match opr:
+        case 'load':
+            if bytecode[pc].get('type') == 'int':
+                raise Exception("load int")
+            elif bytecode[pc].get('type') == 'float':
+                raise Exception("load float")
+            else:
+                raise Exception("load")
+        case 'store':
+            raise Exception("store")
+        case 'push':
+            if bytecode[pc].get('value').get('type') == 'integer':
+                state[1].append(('int',{'-','0','+'}))
+            elif bytecode[pc].get('value').get('type') == 'float':
+                state[1].append(('float',{'-','0','+'}))
+            else:
+                raise Exception("push")
+            return (state, pc+1, False)
+        case 'binary': 
+            operant = bytecode[pc].get('operant')
+            a2 = state[1].pop()
+            a1 = state[1].pop()
+            print(f"a1: {a1}, a2: {a2}")
+            match operant:
+                case 'add':
+                    raise Exception("add")
+                case 'sub':
+                    raise Exception("sub")
+                case 'mul':
+                    raise Exception("mul")
+                case 'div':
+                    state[1].append(('int',{'-','0','+'}))
+                    if a2[1].contains('0'):
+                        return (state, pc+1, True)
+                    else:
+                        return (state, pc+1, False)
+                    raise Exception("div")
+                case 'rem':
+                    raise Exception("rem")
+                case _:
+                    raise Exception("binary")
+        case 'incr':
+            raise Exception("incr")
+        case 'negate':
+            raise Exception("negate")
+        case 'put':
+            raise Exception("put")
+        case 'get':
+            raise Exception("get")
+        case 'ifz':
+            cond = bytecode[pc].get('condition')
+            match cond:
+                case 'eq':
+                    raise Exception("eq")
+                case 'ne':
+                    raise Exception("ne")
+                case 'lt':
+                    raise Exception("lt")
+                case 'le':
+                    raise Exception("le")
+                case 'gt':
+                    raise Exception("gt")
+                case 'ge':
+                    raise Exception("ge")
+                case _:
+                    raise Exception("ifz")
+        case 'if':
+            cond = bytecode[pc].get('condition')
+            match cond:
+                case 'eq':
+                    raise Exception("eq")
+                case 'ne':
+                    raise Exception("ne")
+                case 'lt':
+                    raise Exception("lt")
+                case 'le':
+                    raise Exception("le")
+                case 'gt':
+                    raise Exception("gt")
+                case 'ge':
+                    raise Exception("ge")
+                case _:
+                    raise Exception("if")
+        case 'new':
+            raise Exception("new")
+        case 'dup':
+            raise Exception("dup")
+        case 'throw':
+            raise Exception("throw")
+        case 'goto':
+            raise Exception("goto")
+        case 'negate':
+            raise Exception("negate")
+        case 'incr':
+            raise Exception("incr")
+        
+        case 'invoke':
+            raise Exception("invoke")
+        case 'return':
+            raise Exception("return")
+        case 'array_store':
+            raise Exception("array store")
+        case 'array_load':
+            raise Exception("array load")
+        case _:
+            raise Exception()
+        
+    
+    
+    
+    
+   
+
     return (None, None)
 
-def abstract_join(a1, a2):
-    return a1.join(a2)
+
+
+def abstract_join(a1, a2, npc):
+    #TODO: Finish this method, needs further looping to join the arguments
+    res = a1.copy()
+    notfound = True
+    for arg2 in a2[npc][0]:
+        for arg1 in a1[npc][0]:
+            if arg1[0] is arg2[0]:
+                # Do set join on    
+                # res[npc][0][1] and arg2[1]
+                
+                notfound = False
+                break
+        if notfound:
+            res[npc][0].append(arg2)
+        
+    a1[npc] = a1 + a2 # Join a1 og a2 somehow
+
+    
+    
+    
+    return a1
 
 def is_error(res):
     return True
 
+
 def bounded_abstract_interpretation(bc, m, k):
-    # Pc = first initial state generation
-    s = { Pc(m, 0) : (abstract_args(m), []) }
+    # {(abstract_args(m), [])} is the intial state
+    s = {0 : (abstract_args(m), [])}
+    # Perform steps up to k times
     for _ in range(0, k):
+        # Copy the current state
         next_s = s.copy()
-        for pc in range(0, len(s)):
-            (new_s, npc) = abstract_step(bc, s[pc], pc)
-            if is_error(new_s):
+        # For each pc in the current state
+        for pc in s:
+            # Perform the abstract step
+            (new_s, npc, is_error) = abstract_step(bc, s[pc], pc)
+            # If the step resulted in an error, return with error
+            if is_error:
                 return "Has error: " + new_s
-            next_s = abstract_join(next_s[npc], new_s)
+            # Join the new state with the next state
+            next_s = abstract_join(next_s, new_s, npc)
+        # Update the state
         s = next_s 
     return "Has no error"
  
@@ -121,8 +294,9 @@ if __name__ == "__main__":
             if not is_case:
                 continue
             else:
-                program = Program(method.get('code').get('bytecode'))
-                bounded_abstract_interpretation(program, method, 10)
+                program = method.get('code').get('bytecode')
+                res = bounded_abstract_interpretation(program, method, 10)
+                print(res)
                 #interpreter = Interpreter(program, None)
                 #interpreter.run(([],[],0), "Simple"+method.get('name'))
 
