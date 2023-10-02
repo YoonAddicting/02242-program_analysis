@@ -1,83 +1,43 @@
 import glob
 from typing import Optional, TextIO
 import json
+from enum import Enum
 
-class Program:
-    def __init__(self,bytecode):
-        self.bytecode = bytecode
-
-class Locals:
-    def __init__(self) -> None:
-        pass
-
-class OperStack:
-    def __init__(self) -> None:
-        pass
-
-
-class ProgramCounter:
-    def __init__(self) -> None:
-        pass
-
-
-
-class Interpreter:
-
-
-    def __init__(self, program : Program, verbose : Optional[TextIO]):
-        self.program = program
-        self.verbose = verbose
-        self.logfile = None
-        self.memory = {}
-        self.stack = []
-
-    def run(self, f : tuple[Locals, OperStack, ProgramCounter], method : str):
-        self.stack.append(f)
-        self.log_start(method)
-        self.log_state()
-        while self.step():
-            self.log_state()
-            continue
-        self.log_done()
+class VarTypes(Enum):
+    INT = 1
+    FLOAT = 2
+    DOUBLE = 3
+    BOOLEAN = 4
     
-    def log_start(self, method):
-        self.logfile =  open(f"./tests/{method}.txt",'w')
-        
+class ValueExpr:
+    def __init__(self, type : VarTypes, value : set) -> None:
+        self.type = type
+        self.value = value
+
+    def __str__(self) -> str:
+        return f"{self.value} : {self.type}"
     
-    def log_state(self):
-        self.logfile.write('\n'.join('{} {} {}'.format(self.stack[-1][0],self.stack[-1][1],self.stack[-1][2])))
-        
-        self.logfile.write(json.dumps(self.memory))
-        
-
-    def log_done(self):
-        self.logfile.close()
-
-    def step(self):
-        (l, s, pc) = self.stack[-1]
-        b = self.program.bytecode[pc]
-        if hasattr(self, b["opr"]):
-            return getattr(self, b["opr"])(b)
-        else:
-            return False
-
-    def pop(self, b):
-        (l, s, pc) = self.stack.pop(-1)
-        # Rule (pop_1)
-        if b["words"] == 1:
-            if len(s) < 1: return False
-            self.stack.append((l, s[:-1], pc + 1))
-        # Rule (pop_2)
-        elif b["words"] == 2:
-            if len(s) < 2: return False
-            self.stack.append((l, s[:-2], pc + 1))
+    def __repr__(self) -> str:
+        return self.__str__()
+    
+    def __eq__(self, other : object) -> bool:
+        if isinstance(self, other):
+            return self.value == other.value and self.type == other.type
         else:
             return False
         
-    def invoke(self, b, r):
-        l[0] = self.ref(r)
-        self.stack.append((l, s, pc + 1))
-        return True
+    def __add__(self, other : object) -> object:
+        if self.type == other.type:
+            return ValueExpr(self.type, self.value.union(other.value))
+        else:
+            raise Exception("Type mismatch")
+        
+    def __sub__(self, other : object) -> object:
+        if self.type == other.type:
+            return ValueExpr(self.type, self.value.difference(other.value))
+        else:
+            raise Exception("Type mismatch")
+    
 
 def get_type(t):
     try:
@@ -99,21 +59,24 @@ def abstract_args(method):
             raise Exception("nested type")
         match param_type:
             case 'int':
-                abstract_args.append(('int',{'-','0','+'}))
+                abstract_args.append(ValueExpr(VarTypes.INT, {'-','0','+'}))
             case 'float':
-                abstract_args.append(('float',{'-','0','+'}))
+                abstract_args.append(ValueExpr(VarTypes.FLOAT,{'-','0','+'}))
             case 'double':
-                abstract_args.append(('double',{'-','0','+'}))
+                abstract_args.append(ValueExpr(VarTypes.DOUBLE,{'-','0','+'}))
             case 'boolean':
-                abstract_args.append(('boolean',{'true','false'}))
+                abstract_args.append(ValueExpr(VarTypes.BOOLEAN,{'true','false'}))
             case "":
                 continue
             case _:
                 raise Exception(f"Undefined type: {param_type}")
     return abstract_args
 
-def abstract_step(bytecode, state, pc):
+def abstract_step(bytecode : list, state : (list, list), pc : int) -> ([(int, list)], bool):
     opr = bytecode[pc].get('opr')
+
+    new_states = []
+    contains_error = False
 
     match opr:
         case 'load':
@@ -127,9 +90,9 @@ def abstract_step(bytecode, state, pc):
             raise Exception("store")
         case 'push':
             if bytecode[pc].get('value').get('type') == 'integer':
-                state[1].append(('int',{'-','0','+'}))
+                state[1].append(ValueExpr(VarTypes.INT, {'-','0','+'}))
             elif bytecode[pc].get('value').get('type') == 'float':
-                state[1].append(('float',{'-','0','+'}))
+                state[1].append(ValueExpr(VarTypes.FLOAT, {'-','0','+'}))
             else:
                 raise Exception("push")
             return (state, pc+1, False)
@@ -146,12 +109,13 @@ def abstract_step(bytecode, state, pc):
                 case 'mul':
                     raise Exception("mul")
                 case 'div':
-                    state[1].append(('int',{'-','0','+'}))
+                    state[1].append(ValueExpr(VarTypes.INT, {'-','0','+'}))
                     if a2[1].contains('0'):
-                        return (state, pc+1, True)
+                        new_states.append((pc+1, state))
+                        contains_error == True
                     else:
-                        return (state, pc+1, False)
-                    raise Exception("div")
+                        new_states.append((pc+1, state))
+                    #raise Exception("div")
                 case 'rem':
                     raise Exception("rem")
                 case _:
@@ -228,31 +192,25 @@ def abstract_step(bytecode, state, pc):
     
    
 
-    return (None, None)
+    return (new_states, contains_error)
 
 
 
-def abstract_join(a1, a2, npc):
+def abstract_join(old_s, new_s):
     #TODO: Finish this method, needs further looping to join the arguments
-    res = a1.copy()
-    notfound = True
-    for arg2 in a2[npc][0]:
-        for arg1 in a1[npc][0]:
-            if arg1[0] is arg2[0]:
-                # Do set join on    
-                # res[npc][0][1] and arg2[1]
-                
-                notfound = False
-                break
-        if notfound:
-            res[npc][0].append(arg2)
-        
-    a1[npc] = a1 + a2 # Join a1 og a2 somehow
+    res = old_s.copy()
+    for (npc, ns) in new_s:
+        if npc in old_s.keys():
+            # TODO widening of stack
+            for i in range(len(old_s[npc][0])):
+                # Widening of locals
+                old_s[npc][0][i] = old_s[npc][0][i] + ns[0][i]
 
-    
-    
-    
-    return a1
+            res[npc] = ns
+            continue
+        #add the state
+        res[npc] = ns    
+    return old_s
 
 def is_error(res):
     return True
@@ -268,13 +226,17 @@ def bounded_abstract_interpretation(bc, m, k):
         # For each pc in the current state
         for pc in s:
             # Perform the abstract step
-            (new_s, npc, is_error) = abstract_step(bc, s[pc], pc)
+            # new_s is a list of new states and pc
+            (new_s, is_error) = abstract_step(bc, s[pc], pc)
             # If the step resulted in an error, return with error
             if is_error:
                 return "Has error: " + new_s
             # Join the new state with the next state
-            next_s = abstract_join(next_s, new_s, npc)
+            next_s = abstract_join(next_s, new_s)
         # Update the state
+        if s is next_s:
+            #fixed point
+            return "Has no error"
         s = next_s 
     return "Has no error"
  
