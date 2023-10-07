@@ -92,7 +92,11 @@ class Bounds:
 
         return Bounds (None if None in edges else min(edges), None if None in edges else max(edges))
 
-        
+def get_bytecode_at_offset(bytecode, offset):
+    for bc in bytecode:
+        if bc.get('offset') == offset:
+            return bc
+    return None
 
 def merge(old_s, new_s, abstraction):
     if old_s is None:
@@ -112,40 +116,47 @@ def merge_forward(states, load, locals, stack, abstraction, worklist):
     states[load] = res
 
 
-def step(states, load, locals, stack, bytecode, opr, worklist, abstraction):
+def step(states, load, locals, stack, bytecode, opr, worklist, abstraction, full_bytecode):
     if opr == 'push':
         new_stack = stack + [abstraction.from_value(bytecode.get('value'))]
-
-        merge_forward(states, load + 1, locals, new_stack, abstraction, worklist)
+        new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+        merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
     
     elif opr == 'store':
         new_stack = stack[:-1]
         new_locals = locals.copy()
         new_locals[bytecode.get('index')] = stack[-1]
+        new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
 
-        merge_forward(states, load + 1, new_locals, new_stack, abstraction, worklist)
+        merge_forward(states, new_load, new_locals, new_stack, abstraction, worklist)
 
     elif opr == 'load':
         new_stack = stack + [locals[bytecode.get('index')]]
+        new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
 
-        merge_forward(states, load + 1, locals, new_stack, abstraction, worklist)
+        merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
         
     elif opr == 'if':
         new_stack = stack[:-2]
         a = stack[-1]
         b = stack[-2]
-        print(f"a: {a}, b: {b}")
-        # Awaiting answer from Christian about assertions in order to verify implementation
+
         if bytecode.get('condition') == 'ge':
             # if not a >= b
-            load_index = load + 1
-            merge_forward(states, load_index, locals, new_stack, abstraction, worklist)
+            new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
             # if a >= b
-            load_index = bytecode.get('target')
-            merge_forward(states, load_index, locals, new_stack, abstraction, worklist)
-
-        #TODO: Implement
-        raise Exception("Not implemented: if")
+            new_load = full_bytecode[bytecode.get('target')].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+        elif bytecode.get('condition') == 'gt':
+            # if not a > b
+            new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+            # if a > b
+            new_load = full_bytecode[bytecode.get('target')].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+        else:
+            raise Exception("Not implemented: if")
 
     
     elif opr == 'ifz':
@@ -153,19 +164,44 @@ def step(states, load, locals, stack, bytecode, opr, worklist, abstraction):
         x = stack[-1]
         if bytecode.get('condition') == 'le':
             # if not 0 <= x
-            load_index = load + 1
-            merge_forward(states, load_index, locals, new_stack, abstraction, worklist)
+            new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
             # if 0 <= x
-            load_index = bytecode.get('target')
-            merge_forward(states, load_index, locals, new_stack, abstraction, worklist)
+            new_load = full_bytecode[bytecode.get('target')].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
 
         elif bytecode.get('condition') == 'ne':
-            # if not 0 != x
-            load_index = load + 1
-            merge_forward(states, load_index, locals, new_stack, abstraction, worklist)
-            # if 0 != x
-            load_index = bytecode.get('target')
-            merge_forward(states, load_index, locals, new_stack, abstraction, worklist)
+            if x.low == 0 and x.high == 0:
+                # if always not 0 != x
+                new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+            elif x.low < 0 and x.high < 0 or x.low > 0 and x.high > 0:
+                # if always 0 != x
+                new_load = full_bytecode[bytecode.get('target')].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+            else:
+                # if not 0 != x
+                new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+                # if 0 != x
+                new_load = full_bytecode[bytecode.get('target')].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+        elif bytecode.get('condition') == 'gt':
+            if x.low <= 0 and x.high <= 0:
+                # if always not 0 > x
+                new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+            elif x.low > 0 and x.high > 0:
+                # if always 0 > x
+                new_load = full_bytecode[bytecode.get('target')].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+            else:
+                # if not 0 > x
+                new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+                # if 0 > x
+                new_load = full_bytecode[bytecode.get('target')].get('offset')
+                merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
 
         else:
             raise Exception(f"Unhandled condition: {bytecode.get('condition')}")
@@ -173,15 +209,17 @@ def step(states, load, locals, stack, bytecode, opr, worklist, abstraction):
     elif opr == 'incr':
         new_locals = locals.copy()
         new_locals[bytecode.get('index')] = abstraction.add(locals[bytecode.get('index')], abstraction.from_integer(bytecode.get('amount')))
+        new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
 
         
-        merge_forward(states, load + 1, new_locals, stack, abstraction, worklist)
+        merge_forward(states, new_load, new_locals, stack, abstraction, worklist)
         pass
 
     elif opr == 'negate':
         new_stack = stack[:-1]
         x = abstraction.mul(stack[-1], abstraction.from_integer(-1))
-        merge_forward(states, load + 1, locals, new_stack + [x], abstraction, worklist)
+        new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+        merge_forward(states, new_load, locals, new_stack + [x], abstraction, worklist)
 
     elif opr == 'return':
         # Intentionally left blank
@@ -191,7 +229,8 @@ def step(states, load, locals, stack, bytecode, opr, worklist, abstraction):
         if bytecode.get('operant') == 'mul':
             new_stack = stack[:-2]
             x = abstraction.mul(stack[-1], stack[-2])
-            merge_forward(states, load + 1, locals, new_stack + [x], abstraction, worklist)
+            new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack + [x], abstraction, worklist)
 
         elif bytecode.get('operant') == 'div':
             new_stack = stack[:-2]
@@ -200,7 +239,8 @@ def step(states, load, locals, stack, bytecode, opr, worklist, abstraction):
             if (b.low <= 0 and b.high >= 0) or math.isclose(b.low, .0, abs_tol=1e-50) or math.isclose(b.high, .0, abs_tol=1e-50):
                 return "Yes, with exception, ArithmeticException"
             x = abstraction.div(a, b)
-            merge_forward(states, load + 1, locals, new_stack + [x], abstraction, worklist)
+            new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack + [x], abstraction, worklist)
 
         elif bytecode.get('operant') == 'sub':
             new_stack = stack[:-2]
@@ -209,30 +249,31 @@ def step(states, load, locals, stack, bytecode, opr, worklist, abstraction):
             print(f"b: {b}, a: {a}")
             #TODO Verify contents of a and b to be correct
             x = abstraction.sub(a, b)
-            merge_forward(states, load + 1, locals, new_stack + [x], abstraction, worklist)
+            new_load = new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack + [x], abstraction, worklist)
 
         else:
             raise Exception(f"Unknown binary operator: {bytecode.get('operant')}")
         
     elif opr == 'get':
 
-        # TODO Maybe reconsider this. Doesn't work as it should for itDependsOnLattice3 for the assertions to load the values in for i and j.
-        if bytecode.get('static'):
-            # static field
-            new_stack = stack + [abstraction.from_type(bytecode.get('field').get('type'))]
-            merge_forward(states, load + 1, locals, new_stack, abstraction, worklist)
+        if bytecode.get('field').get('name') == '$assertionsDisabled':
+            new_stack = stack + [abstraction.from_integer(0)]
+            new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
         else:
-            # use object ref from stack
-            new_stack = stack[:-1]
-            ref = stack[-1]
-            raise Exception(f"Not implemented: Nonstatic get")
-            
-
-
-
-
+            raise(f"Not implemented get: {bytecode.get('field').get('name')}")
+        
     elif opr == 'goto':
-        merge_forward(states, bytecode.get('target'), locals, stack, abstraction, worklist)
+        new_load = full_bytecode[bytecode.get('target')].get('offset')
+        merge_forward(states, new_load, locals, stack, abstraction, worklist)
+
+    elif opr == 'new':
+        if bytecode.get('class') == 'java/lang/AssertionError':
+            return "Yes, with exception, AssertionError"
+        
+        else:
+            raise Exception(f"Unknown new class: {bytecode.get('class')}")
 
     else:
         raise Exception(f"Unknown opr: {opr}")
@@ -254,19 +295,19 @@ def analyse(method, abstraction):
     stack = []
     bytecode = method.get('code').get('bytecode')
     # Intialize states
-    states = [None for b in bytecode]
+    states = [None for _ in range(bytecode[-1].get('offset')+1)]
     # Intialize worklist and intial state
     worklist = [0]
     states[0] = (locals, stack)
 
     while worklist:
         load = worklist.pop()
-        (lc, s), bc = states[load], bytecode[load]
+        (lc, s), bc = states[load], get_bytecode_at_offset(bytecode, load)
         print(f"stack: {s}")
         print(f'locals: {lc}')
         print(f"bytecode: {bc}")
         opr = bc.get('opr')
-        res = step(states, load, lc, s, bc, opr, worklist, abstraction)
+        res = step(states, load, lc, s, bc, opr, worklist, abstraction, bytecode)
         if res is not None:
             print_states(states)
             return res
