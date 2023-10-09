@@ -55,7 +55,7 @@ class Bounds:
             if v1 is None or v2 is None:
                 return None
             return v1 + v2
-        return Bounds(add_m(value1.low,value2.high), add_m(value1.low, value2.high))
+        return Bounds(add_m(value1.low,value2.low), add_m(value1.high, value2.high))
     
     @classmethod
     def sub(cls, value1, value2):
@@ -63,7 +63,7 @@ class Bounds:
             if v1 is None or v2 is None:
                 return None
             return v1 - v2
-        return Bounds(sub_m(value1.low,value2.high), sub_m(value1.low, value2.high))
+        return Bounds(sub_m(value1.low,value2.high), sub_m(value1.high, value2.low))
     
     @classmethod
     def mul(cls, value1, value2):
@@ -360,3 +360,4 @@ if __name__ == "__main__":
                     print(f"Result: {res}")
                     store_results(dep.split("/")[-1].split(".")[0], method.get('name'), states, res)
                 print(20*"-")
+
