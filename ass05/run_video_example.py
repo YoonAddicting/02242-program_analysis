@@ -171,6 +171,14 @@ def step(states, load, locals, stack, bytecode, opr, worklist, abstraction, full
             new_load = full_bytecode[bytecode.get('target')].get('offset')
             merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
 
+        elif bytecode.get('condition') == 'lt':
+            # if not 0 < x
+            new_load = full_bytecode[full_bytecode.index(bytecode) + 1].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+            # if 0 < x
+            new_load = full_bytecode[bytecode.get('target')].get('offset')
+            merge_forward(states, new_load, locals, new_stack, abstraction, worklist)
+
         elif bytecode.get('condition') == 'ne':
             if x.low == 0 and x.high == 0:
                 # if always not 0 != x
