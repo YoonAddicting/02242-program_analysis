@@ -1,0 +1,23 @@
+0: ({0: Bounds(low=-2147483648, high=2147483647)}, [])
+1: None
+2: None
+3: ({0: Bounds(low=-2147483648, high=2147483647)}, [Bounds(low=0, high=0)])
+4: None
+5: None
+6: ({0: Bounds(low=-2147483648, high=2147483647)}, [])
+7: ({0: Bounds(low=-2147483648, high=2147483647)}, [Bounds(low=-2147483648, high=2147483647)])
+8: None
+9: None
+10: ({0: Bounds(low=-2147483648, high=2147483647)}, [])
+11: None
+12: None
+13: None
+14: None
+15: None
+16: None
+17: None
+18: ({0: Bounds(low=-2147483648, high=2147483647)}, [])
+19: ({0: Bounds(low=-2147483648, high=2147483647)}, [Bounds(low=0, high=0)])
+20: ({0: Bounds(low=-2147483648, high=2147483647)}, [Bounds(low=0, high=0), Bounds(low=-2147483648, high=2147483647)])
+21: None
+Result: Yes, with exception, ArithmeticException

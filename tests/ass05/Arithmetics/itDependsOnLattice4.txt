@@ -1,0 +1,15 @@
+0: ({}, [])
+1: ({}, [Bounds(low=0, high=0)])
+2: ({0: Bounds(low=0, high=0)}, [])
+3: None
+4: None
+5: ({0: Bounds(low=1, high=1)}, [])
+6: None
+7: None
+8: ({0: Bounds(low=0, high=0)}, [])
+9: None
+10: None
+11: ({0: Bounds(low=0, high=0)}, [Bounds(low=998, high=998)])
+12: ({0: Bounds(low=0, high=0)}, [Bounds(low=998, high=998), Bounds(low=0, high=0)])
+13: None
+Result: Yes, with exception, ArithmeticException

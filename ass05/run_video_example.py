@@ -2,6 +2,7 @@ import glob
 import json
 import sys
 import math
+import os
 
 from dataclasses import dataclass
 from typing import NewType, TypeVar
@@ -310,10 +311,22 @@ def analyse(method, abstraction):
         res = step(states, load, lc, s, bc, opr, worklist, abstraction, bytecode)
         if res is not None:
             print_states(states)
-            return res
-
-
+            return res, states
+        
     print_states(states)
+    return "No", states
+
+def store_results(file_name, function_name, states, res):
+    if not os.path.exists("tests/ass05/"+file_name):
+        os.makedirs("tests/ass05/"+file_name)
+    with open("tests/ass05/"+file_name+"/"+function_name+".txt", "w") as f:
+        for i, s in enumerate(states):
+            if s is None:
+                f.write(f"{i}: None\n")
+            else:
+                f.write(f"{i}: {s}\n")
+        f.write(f"Result: {res}\n")
+
 
 
 if __name__ == "__main__":
@@ -334,7 +347,8 @@ if __name__ == "__main__":
             else:
                 print(20*"-")
                 print(f"Method {method.get('name')}:")
-                res = analyse(method, Bounds)
+                res, states = analyse(method, Bounds)
                 if res is not None:
                     print(f"Result: {res}")
+                    store_results(dep.split("/")[-1].split(".")[0], method.get('name'), states, res)
                 print(20*"-")

@@ -1,0 +1,29 @@
+0: ({0: Bounds(low=-2147483648, high=2147483647), 1: Bounds(low=-2147483648, high=2147483647)}, [])
+1: None
+2: None
+3: ({0: Bounds(low=-2147483648, high=2147483647), 1: Bounds(low=-2147483648, high=2147483647)}, [Bounds(low=0, high=0)])
+4: None
+5: None
+6: ({0: Bounds(low=-2147483648, high=2147483647), 1: Bounds(low=-2147483648, high=2147483647)}, [])
+7: ({0: Bounds(low=-2147483648, high=2147483647), 1: Bounds(low=-2147483648, high=2147483647)}, [Bounds(low=-1, high=-1)])
+8: ({0: Bounds(low=-2147483648, high=2147483647), 1: Bounds(low=-2147483648, high=2147483647)}, [Bounds(low=-1, high=-1), Bounds(low=-2147483648, high=2147483647)])
+9: None
+10: None
+11: ({0: Bounds(low=-2147483648, high=2147483647), 1: Bounds(low=-2147483648, high=2147483647)}, [])
+12: None
+13: None
+14: None
+15: None
+16: ({0: Bounds(low=-2147483648, high=2147483647), 1: Bounds(low=-2147483648, high=2147483647)}, [])
+17: None
+18: None
+19: None
+20: None
+21: None
+22: None
+23: None
+24: None
+25: None
+26: None
+27: None
+Result: Yes, with exception, AssertionError
