@@ -50,7 +50,7 @@ class java_file:
         #   fields
         #   methods  
         # sort file alphabetically?
-        code = code + self.java_class.export_class
+        code = code + self.java_class.export_class()
         
         return code
 
@@ -96,10 +96,19 @@ class java_class:
             if self.parent.package != field_path:
                 self.parent.add_import(type_name)
             
+            access = ""
+            for a in f.get("access"):
+                access = access + " " + a
             
+            val = f.get("value")
+            value = ""
+            if val is  not None:
+                value = val.get("value")
+            else:
+                value = None
 
             # Create the field
-            field = java_field(field_name, field_type)
+            field = java_field(field_name, field_type, access, value)
         
             self.fields.append(field)
                 
@@ -112,17 +121,17 @@ class java_class:
             opr = code.get('opr')
             match opr:
                 case 'load':
-                    field_index = bc.get('index')
+                    field_index = code.get('index')
                 case 'new':
                     field = self.fields[field_index-1]
-                    _, field_type = parse_file_name(bc.get('class'))
+                    _, field_type = parse_file_name(code.get('class'))
                     field.value = f"new {field_type}" 
                 case 'dup':
                     continue
                 case 'invoke':
                     field = self.fields[field_index-1]
                     field_args = "("
-                    for arg in bc.get('method').get('args'):
+                    for arg in code.get('method').get('args'):
                         raise "Don't handle args for calling new classes"
                     field_args += ")"
                     field.value += field_args
@@ -152,11 +161,11 @@ class java_class:
         return res+ "}"
         
 class java_field:
-    def __init__(self, name, type):
+    def __init__(self, name, type, access, value):
         self.name = name
         self.type = type
-        self.access = None
-        self.value = None
+        self.access = access
+        self.value = value
     
     def export_field(self):
         end =";"
@@ -171,7 +180,7 @@ class java_method:
         self.access = json.get("access")
         self.return_type = json.get("returns").get("type")
         self.variable_number = 0
-        self.parse_arguments()
+        self.parse_arguments(json.get("params"))
         self.stack = None
         self.locals = None
         self.code = json.get("code")
@@ -254,4 +263,4 @@ def decompile_dir(dir):
     pass
 
 if __name__ == '__main__':
-    decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    decompile_file('./ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
