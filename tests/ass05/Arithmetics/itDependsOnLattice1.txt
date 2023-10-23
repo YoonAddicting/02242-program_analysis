@@ -1,0 +1,10 @@
+0: ({}, [])
+1: ({}, [Bounds(low=3, high=3)])
+2: ({0: Bounds(low=3, high=3)}, [])
+3: None
+4: None
+5: ({0: Bounds(low=2, high=2)}, [])
+6: ({0: Bounds(low=2, high=2)}, [Bounds(low=2, high=2)])
+7: ({0: Bounds(low=2, high=2)}, [Bounds(low=2, high=2), Bounds(low=2, high=2)])
+8: ({0: Bounds(low=2, high=2)}, [Bounds(low=1, high=1)])
+Result: No

@@ -27,12 +27,26 @@ class ValueExpr:
             return False
         
     def __add__(self, other : object) -> object:
+        if self.type == 'int' and other.type == self.type:
+            
+            pass
+        elif self.type == 'float' and other.type == self.type:
+            pass
+        elif self.type == 'double' and other.type == self.type:
+            pass
+        elif self.type == 'boolean' and other.type == self.type:
+            pass
+        else:
+            pass
+    
+        
+    def union(self, other : object) -> object:
         if self.type == other.type:
             return ValueExpr(self.type, self.value.union(other.value))
         else:
             raise Exception("Type mismatch")
         
-    def __sub__(self, other : object) -> object:
+    def intersect(self, other : object) -> object:
         if self.type == other.type:
             return ValueExpr(self.type, self.value.difference(other.value))
         else:
@@ -75,53 +89,66 @@ def abstract_args(method):
 def abstract_step(bytecode : list, state : (list, list), pc : int) -> ([(int, list)], bool):
     opr = bytecode[pc].get('opr')
 
+    original_state = (state[0].copy(), state[1].copy())
     new_states = []
     contains_error = False
 
+    print(f"opr: {opr}")
     match opr:
         case 'load':
+            index = bytecode[pc].get('index')
             if bytecode[pc].get('type') == 'int':
-                raise Exception("load int")
+                original_state[1].append(state[0][index])
+                new_states.append((pc+1, original_state))
             elif bytecode[pc].get('type') == 'float':
-                raise Exception("load float")
+                original_state[1].append(state[0][index])
+                new_states.append((pc+1, original_state))
             else:
-                raise Exception("load")
+                raise Exception("load not defined for type")
+            
         case 'store':
+            index = bytecode[pc].get('index')
+            
             raise Exception("store")
         case 'push':
+            # push to stack
             if bytecode[pc].get('value').get('type') == 'integer':
-                state[1].append(ValueExpr(VarTypes.INT, {'-','0','+'}))
+                original_state[1].append(ValueExpr(VarTypes.INT, {'-','0','+'}))
             elif bytecode[pc].get('value').get('type') == 'float':
-                state[1].append(ValueExpr(VarTypes.FLOAT, {'-','0','+'}))
+                original_state[1].append(ValueExpr(VarTypes.FLOAT, {'-','0','+'}))
             else:
                 raise Exception("push")
-            return (state, pc+1, False)
+            new_states.append((pc+1, original_state))
         case 'binary': 
             operant = bytecode[pc].get('operant')
-            a2 = state[1].pop()
-            a1 = state[1].pop()
+            a2 = original_state[1].pop()
+            a1 = original_state[1].pop()
             print(f"a1: {a1}, a2: {a2}")
             match operant:
                 case 'add':
-                    raise Exception("add")
+                    original_state[1]
+                    #raise Exception("add")
                 case 'sub':
                     raise Exception("sub")
                 case 'mul':
                     raise Exception("mul")
                 case 'div':
-                    state[1].append(ValueExpr(VarTypes.INT, {'-','0','+'}))
-                    if a2[1].contains('0'):
-                        new_states.append((pc+1, state))
+                    original_state[1].append(ValueExpr(VarTypes.INT, {'-','0','+'}))
+                    if '0' in a2.value:
+                        new_states.append((pc+1, original_state))
                         contains_error == True
                     else:
-                        new_states.append((pc+1, state))
+                        new_states.append((pc+1, original_state))
                     #raise Exception("div")
                 case 'rem':
                     raise Exception("rem")
                 case _:
                     raise Exception("binary")
         case 'incr':
-            raise Exception("incr")
+            index = bytecode[pc].get('index')
+            amount = bytecode[pc].get('amount')
+            original_state[0][index] = state[0][index] + amount
+            new_states.append((pc+1, original_state))
         case 'negate':
             raise Exception("negate")
         case 'put':
@@ -190,7 +217,7 @@ def abstract_step(bytecode : list, state : (list, list), pc : int) -> ([(int, li
     
     
     
-   
+    new_states
 
     return (new_states, contains_error)
 
@@ -204,13 +231,13 @@ def abstract_join(old_s, new_s):
             # TODO widening of stack
             for i in range(len(old_s[npc][0])):
                 # Widening of locals
-                old_s[npc][0][i] = old_s[npc][0][i] + ns[0][i]
+                old_s[npc][0][i] = old_s[npc][0][i].union(ns[0][i])
 
             res[npc] = ns
             continue
         #add the state
         res[npc] = ns    
-    return old_s
+    return res
 
 def is_error(res):
     return True
@@ -234,6 +261,8 @@ def bounded_abstract_interpretation(bc, m, k):
             # Join the new state with the next state
             next_s = abstract_join(next_s, new_s)
         # Update the state
+        # Check if this is a fixed point
+        # TODO: Create function to check if two states are identical
         if s is next_s:
             #fixed point
             return "Has no error"
@@ -256,6 +285,7 @@ if __name__ == "__main__":
             if not is_case:
                 continue
             else:
+                print(f"Method {method.get('name')}:")
                 program = method.get('code').get('bytecode')
                 res = bounded_abstract_interpretation(program, method, 10)
                 print(res)
