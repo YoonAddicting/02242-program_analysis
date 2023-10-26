@@ -1,13 +1,14 @@
 import json
 import re
 import os
+import glob
 
 
 def parse_file_name(file_name) -> (str, str):
     name = ""
     package = ""
-    name_opt = re.search('[^\/]*$', file_name)
-    package_opt = re.search('^.*\/', file_name)
+    name_opt = re.search('[^/]*$', file_name)
+    package_opt = re.search('^.*(?=/)', file_name)
     
     if name_opt is None:
         raise "Could not find name"
@@ -39,8 +40,8 @@ class java_file:
     def export_code(self):
         code = ""
         # package declaration
-        if self.package is not "":
-            code = code + self.package.replace("/",".") + "\n"
+        if self.package != "":
+            code = code + "package "+ self.package.replace("/",".") + ";\n"
 
         # imports
         for i in self.imports:
@@ -152,7 +153,7 @@ class java_class:
                 self.methods.append(method)
     
     def export_class(self):
-        res = self.access + " " + self.class_name + "{\n" 
+        res = self.access + " class " + self.class_name + "{\n" 
         for f in self.fields:
             res = res + f.export_field() + "\n"
         for m in self.methods:
@@ -234,9 +235,9 @@ class java_method:
         parsed_arguments = []
         for argument in self.arguments:
             parsed_arguments.append(f"{argument[0]} {argument[1]}")
-        res += ", ".join(parsed_arguments) + ") \{\n    "
+        res += ", ".join(parsed_arguments) + ") {\n    "
         res += ";\n    ".join(self.method_body)
-        res += "}"
+        res += ";\n}"
         
         return res
     
@@ -245,22 +246,47 @@ def decompile_file(dep):
     file_object = open(dep, 'r')
     file = json.loads(file_object.read())
     
-    
-    
+    try:
+        os.mkdir("res")
+    except:
+        pass
+
     jfile = java_file(file)
 
     o_code = jfile.export_code()
-
-    # TODO Currently just writes to CWD instead of correct path
+    return_path = ".."
+    os.chdir("res")
+    package = jfile.package +"/"
+    path = re.findall('[^/]+(?=/)',package)
+    for p in path:
+        try:
+            os.mkdir(p)
+        except:
+            pass
+        os.chdir(p)
+        return_path += "/.."
+    
     with open(f"{jfile.name}.java", 'w') as f:
         f.write(o_code)
     
     
+    os.chdir(return_path)
+   
+    
+    
 
 
-def decompile_dir(dir):
-    os.mkdir("resdir")
-    pass
+def decompile_dir(path):
+    
+    dir = glob.glob(f'{path}**.json',recursive=True)
+    for file in dir:
+        decompile_file(file)
+    
 
 if __name__ == '__main__':
-    decompile_file('./ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    os.chdir("project")
+    
+
+    decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
+    
