@@ -22,6 +22,29 @@ def parse_file_name(file_name) -> (str, str):
     
     return package, name
 
+def parse_condition(str):
+    match str:
+        case "eq":
+           return "=="
+        case "ne":
+           return "!="
+        case "lt":
+           return "<"
+        case "ge":
+           return ">="
+        case "gt":
+           return ">"
+        case "le":
+           return "<="
+        case _:
+            raise f"condition not defined"
+""" 
+        case "is":
+           raise
+        case "isnot":
+            pass
+"""
+
 class java_file:
     def __init__(self, json):
         self.json = json
@@ -45,7 +68,7 @@ class java_file:
 
         # imports
         for i in self.imports:
-            code = code + i + "\n"
+            code = code + f"import {i};\n"
 
         # Class
         #   fields
@@ -112,44 +135,15 @@ class java_class:
             field = java_field(field_name, field_type, access, value)
         
             self.fields.append(field)
-                
-    def parse_init(self, init):
-        bc = init.get('code').get('bytecode')
-        # Skip the initial load and invoke operations
-        bc = bc[2:]
-        field_index = None
-        for code in bc:
-            opr = code.get('opr')
-            match opr:
-                case 'load':
-                    field_index = code.get('index')
-                case 'new':
-                    field = self.fields[field_index-1]
-                    _, field_type = parse_file_name(code.get('class'))
-                    field.value = f"new {field_type}" 
-                case 'dup':
-                    continue
-                case 'invoke':
-                    field = self.fields[field_index-1]
-                    field_args = "("
-                    for arg in code.get('method').get('args'):
-                        raise "Don't handle args for calling new classes"
-                    field_args += ")"
-                    field.value += field_args
-                case 'put':
-                    continue
-                case 'return':
-                    continue
-                case '_':
-                    raise f"Unhandled opr: {opr}, in init"
+
 
     def parse_methods(self):
         self.methods = []
         for m in self.json.get("methods"):
-            if m.get('name') == "<init>":
+            if m.get('name') == "<init >":
                 self.parse_init(m)
             else:
-                method = java_method(m)
+                method = java_method(m, self)
                 self.methods.append(method)
     
     def export_class(self):
@@ -176,14 +170,15 @@ class java_field:
     
 
 class java_method:
-    def __init__(self, json):
+    def __init__(self, json, parent : java_class):
         self.function_name = json.get("name")
         self.access = json.get("access")
         self.return_type = json.get("returns").get("type")
         self.variable_number = 0
+        self.parent = parent
+        self.stack = []
+        self.locals = []
         self.parse_arguments(json.get("params"))
-        self.stack = None
-        self.locals = None
         self.code = json.get("code")
         self.annotations = json.get("annotations")
         self.parse_code()
@@ -197,25 +192,174 @@ class java_method:
         self.arguments = []
         for param in params:
             if param.get('type').get('kind') == "array":
-                _, arg_type = parse_file_name(param.get('type').get('type').get('name'))
-                self.arguments.append((f"{arg_type}[]", self.generate_variable_name()))
+                name = self.generate_variable_name()
+                path, arg_type = parse_file_name(param.get('type').get('type').get('name'))
+                self.arguments.append((f"{arg_type}[]", name))
+                self.locals.append(name)
+                
+            elif param.get('type').get('kind') == "class":
+                name = self.generate_variable_name()
+                path, class_name = parse_file_name(param.get('type').get('name'))
+                self.arguments.append(class_name + " " + name)
+                self.locals.append(name)
+
+                if path!= self.parent.parent.package:
+                    self.parent.parent.add_import(f"{path}/{class_name}")
             else:
-                raise f"Non array parameter: {param.get('type').get('kind')}"
+                name = self.generate_variable_name()
+                self.arguments.append(param.get("type").get("base") + " " + name)
+                self.locals.append(name)
+                
 
     def parse_code(self):
         self.method_body = []
-        bytecode = self.code.get('bytecode')
+        target = 0
+        if self.function_name == "<init>":
+            # Skip first two instructions if init
+            bytecode = self.code.get('bytecode')[2:]
+        else:
+            bytecode = self.code.get('bytecode')
         for bc in bytecode:
             opr = bc.get('opr')
             match opr:
+                case "load":
+                    opr_type = bc.get("type")
+                    match opr_type:
+                        case "ref":
+                            index = bc.get("index")
+                            if len(self.locals) <= index:
+                                self.stack.append("")
+                            else:
+                                self.stack.append(self.locals[index])
+                        case "_": 
+                            raise f"Undefined load operation type: {opr_type}"
+                    
+                case "new":
+                    value = self.stack.pop()
+                    package_name, class_name = parse_file_name(bc.get('class'))
+                    # Add the import
+                    if package_name != self.parent.parent.package:
+                        self.parent.parent.add_import(f"{package_name}/{class_name}")
+                    value += f"new {class_name}"
+                    self.stack.append(value)
+
+                case "dup":
+                    if bc.get('words') == 1 or len(self.stack) == 1:
+                        self.stack.append(self.stack[-1])
+                    elif bc.get('words') == 2:
+                        self.stack.append(self.stack[-2])
+                        self.stack.append(self.stack[-2])
+                    else:
+                        raise "Unhandled dup"
+                case "dup_x1":
+                    if bc.get('words') == 1 or len(self.stack) == 2:
+                        self.stack.insert(-2, self.stack[-1])
+                    elif bc.get('words') == 2:
+                        self.stack.insert(-3, self.stack[-2])
+                        self.stack.insert(-3, self.stack[-1])
+                    else:
+                        raise "Unhandled dup_x1"
+                case "dup_x2":
+                    if bc.get('words') == 1 or len(self.stack) == 3:
+                        self.stack.insert(-3, self.stack[-1])
+                    elif bc.get('words') == 2:
+                        self.stack.insert(-4, self.stack[-2])
+                        self.stack.insert(-4, self.stack[-1])
+                    else:
+                        raise "Unhandled dup_x2"
+                case "store":
+                    index = bc.get("index")
+                    out = self.stack.pop()
+                    code = ""
+                    if index == len(locals):
+                        locals.append(self.generate_variable_name)
+                        code = bc.get(type)
+                    self.method_body.append(f"{code} {locals[index]} = {out}")
+                    
+                case "push":
+                    self.stack.append(bc.get("value"))
+                case "binary":
+                    type = bc.get("operant")
+                    match type:
+                        case "add":
+                            a = self.stack.pop()
+                            b = self.stack.pop()
+                            self.stack.append(f"({a}) + ({b})")
+                        case "sub":
+                            a = self.stack.pop()
+                            b = self.stack.pop()
+                            self.stack.append(f"({a}) - ({b})")
+                        case "mul":
+                            a = self.stack.pop()
+                            b = self.stack.pop()
+                            self.stack.append(f"({a}) * ({b})")
+                        case "div":
+                            a = self.stack.pop()
+                            b = self.stack.pop()
+                            self.stack.append(f"({a}) / ({b})")
+                        case "rem":
+                            a = self.stack.pop()
+                            b = self.stack.pop()
+                            self.stack.append(f"({a}) % ({b})")
+                        case _:
+                            raise "Binary operation not recognized"
+                case  "negate":
+                    a = self.stack.pop()
+                    self.stack.append(f"-({a})")
+                
                 case "invoke":
-                    if bc.get('method').get('ref').get('kind') == "class":
-                        _, class_name = parse_file_name(bc.get('method').get('ref').get('name'))
-                        method_name = bc.get('method').get('name')
-                        if len(bc.get('method').get('args')) != 0:
-                            raise "Unhandled: Method invokation has arguments"
-                        code = f"{class_name}.{method_name}()"
-                        self.method_body.append(code)
+                    access = bc.get('access')
+                    match access:
+                        case "static":
+                            if bc.get('method').get('ref').get('kind') == "class":
+                                package_name, class_name = parse_file_name(bc.get('method').get('ref').get('name'))
+                                # Add the import
+                                if package_name != self.parent.parent.package:
+                                    self.parent.parent.add_import(f"{package_name}/{class_name}")
+                                method_name = bc.get('method').get('name')
+                                if len(bc.get('method').get('args')) != 0:
+                                    raise "Unhandled: Method invokation has arguments"
+                                
+                                code = f"{class_name}.{method_name}()"
+                                self.method_body.append(code)
+                        case "special":
+                            value = self.stack.pop()
+                            value = self.stack.pop()
+                            value += "("
+                            for arg in bc.get('method').get('args'):
+                                raise "Don't handle args for calling new classes"
+                            value += ")"
+                            self.stack.append(value)
+                        case "_":
+                            raise f"Unhandled access type: {access}"
+                case "put":
+                    if not bc.get("static"):
+                        field_name = bc.get("field").get("name")
+                        field_name_found = False
+                        for field in self.parent.fields:
+                            if field.name == field_name:
+                                field.value = self.stack.pop()
+                                field_name_found = True
+                        if not field_name_found:
+                            raise f"Could not find field {field_name}"
+                    else:
+                        raise "Unhandled put, not implemented for non-static fields"
+                case "if":
+                    condition = bc.get("condition")
+                    target = bc.get("target")
+                    a = self.stack.pop()
+                    b = self.stack.pop()
+                    text = f"if ({a} " + parse_condition(condition) +" " +b +") {"
+                    
+                case "ifz":
+                    condition = bc.get("condition")
+                    target = bc.get("target")
+                    a = self.stack.pop()
+                    text = f"if ({a} " + parse_condition(condition) +" 0) {"
+                    
+                case "goto":
+
+                    pass
                 case "return":
                     continue
                 case "_":
@@ -224,6 +368,8 @@ class java_method:
 
     
     def export_method(self):
+        if self.function_name == "<init>":
+            return ""
         res = ""
         res += " ".join(self.access)
         if self.return_type == None:
@@ -235,12 +381,13 @@ class java_method:
         parsed_arguments = []
         for argument in self.arguments:
             parsed_arguments.append(f"{argument[0]} {argument[1]}")
-        res += ", ".join(parsed_arguments) + ") {\n    "
-        res += ";\n    ".join(self.method_body)
+        res += ", ".join(parsed_arguments) + ") {\n\t"
+        res += ";\n\t".join(self.method_body)
         res += ";\n}"
         
         return res
     
+
     
 def decompile_file(dep):
     file_object = open(dep, 'r')
@@ -287,6 +434,7 @@ if __name__ == '__main__':
     os.chdir("project")
     
 
-    decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
-    decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
+    #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    #decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
+    decompile_dir('res0/dtu/deps/simple/')
     
