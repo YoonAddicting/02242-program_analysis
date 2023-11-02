@@ -461,7 +461,7 @@ class java_method:
     
 
     
-def decompile_file(dep):
+def decompile_file(dep, res_path = "res"):
     file_object = open(dep, 'r')
     file = json.loads(file_object.read())
     
@@ -474,7 +474,7 @@ def decompile_file(dep):
 
     o_code = jfile.export_code()
     return_path = ".."
-    os.chdir("res")
+    os.chdir(res_path)
     package = jfile.package +"/"
     path = re.findall('[^/]+(?=/)',package)
     for p in path:
@@ -490,16 +490,17 @@ def decompile_file(dep):
     
     
     os.chdir(return_path)
+    file_object.close()
    
     
     
 
 
-def decompile_dir(path):
+def decompile_dir(path, res_path = "res"):
     
-    dir = glob.glob(f'{path}**.json',recursive=True)
+    dir = glob.glob(f'{path}**/*.json',recursive=True)
     for file in dir:
-        decompile_file(file)
+        decompile_file(file, res_path)
     
 
 if __name__ == '__main__':
@@ -508,5 +509,8 @@ if __name__ == '__main__':
 
     #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
     #decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
-    decompile_dir('res0/dtu/deps/simple/')
+    #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/util/Utils.json')
+    #decompile_dir('res0/dtu/deps/simple/')
+    decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+
     
