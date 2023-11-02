@@ -358,7 +358,23 @@ class java_method:
                                     cond_body.append(code)
                                 else:
                                     self.method_body.append(code)
+
+                        case "virtual":
+                            value = self.stack.pop()
+                            ref = self.stack.pop()
+                            method_name = bc.get("method").get("name")
+                            
+                            arg_name = bc.get("method").get("args")[0].get("name")
+                            if arg_name != "java/lang/String":
+                                raise Exception(f"Undandled argument type: {arg_name}")
+                            if value.get("type") == "string":
+                                code = f'{ref}.{method_name}("{value.get("value")}")'
+                            
+                            if cond:
+                                    cond_body.append(code)
+                            else:
                                 self.method_body.append(code)
+
                         case "special":
                             value = self.stack.pop()
                             value = self.stack.pop()
@@ -390,7 +406,7 @@ class java_method:
                     
                 case "ifz":
                     condition = bc.get("condition")
-                    target = bc.get("target")
+                    target.append(bc.get("target"))
                     a = self.stack.pop()
                     cond_text = f"{a} {parse_condition(condition)} 0"
                     
@@ -404,6 +420,18 @@ class java_method:
                         target.append(t)
                     pass
 
+                case "get":
+                    if bc.get("static"):
+                        package_name, class_name = parse_file_name(bc.get('field').get('class'))
+
+                        if package_name != self.parent.parent.package and package_name != "java/lang":
+                            self.parent.parent.add_import(f"{package_name}/{class_name}")
+                        
+                        value = f"{class_name}.{bc.get('field').get('name')}"                        
+
+                        self.stack.append(value)
+                    else:
+                        raise Exception("Unhandled get, not implemented for non-static fields")
                 case "return":
                     continue
                 case _:
