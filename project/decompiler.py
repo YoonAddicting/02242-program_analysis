@@ -213,13 +213,40 @@ class java_method:
 
     def parse_code(self):
         self.method_body = []
-        target = 0
+        target = []
+        nextTarget = 0
+        cond = False
+        loop = False
+        cont = False
+        cond_body = []
+        cond_text = ""
         if self.function_name == "<init>":
             # Skip first two instructions if init
             bytecode = self.code.get('bytecode')[2:]
         else:
             bytecode = self.code.get('bytecode')
-        for bc in bytecode:
+           
+        for (curpos, bc) in enumerate(bytecode):
+            if len(target) != 0 and target[0] == curpos:
+                target.pop()
+                if loop:
+                    self.method_body.append(f"while ({cond_text}) "+"{\n")
+                    self.method_body.append(cond_body)
+                    self.method_body.append("}\n")
+                    cond_body = []
+                    cond = False
+                    loop = False
+                else:
+                    if cond_text !="":
+                        self.method_body.append(f"if ({cond_text}) ")
+                    self.method_body.append("{\n")
+                    self.method_body.append(cond_body)
+                    self.method_body.append("}")
+                    if cont:
+                        self.method_body.append(" else ")
+                    else:
+                        self.method_body.append("\n")
+                pass
             opr = bc.get('opr')
             match opr:
                 case "load":
@@ -274,7 +301,13 @@ class java_method:
                     if index == len(locals):
                         locals.append(self.generate_variable_name)
                         code = bc.get(type)
-                    self.method_body.append(f"{code} {locals[index]} = {out}")
+
+                    text = f"{code} {locals[index]} = {out}"
+                    
+                    if cond:
+                        cond_body.append(text)
+                    else:
+                        self.method_body.append(text)
                     
                 case "push":
                     self.stack.append(bc.get("value"))
@@ -321,6 +354,10 @@ class java_method:
                                     raise Exception("Unhandled: Method invokation has arguments")
                                 
                                 code = f"{class_name}.{method_name}()"
+                                if cond:
+                                    cond_body.append(code)
+                                else:
+                                    self.method_body.append(code)
                                 self.method_body.append(code)
                         case "special":
                             value = self.stack.pop()
@@ -346,20 +383,27 @@ class java_method:
                         raise Exception("Unhandled put, not implemented for static fields")
                 case "if":
                     condition = bc.get("condition")
-                    target = bc.get("target")
+                    target.append( bc.get("target"))
                     a = self.stack.pop()
                     b = self.stack.pop()
-                    text = f"if ({a} " + parse_condition(condition) +" " +b +") {"
+                    cond_text = f"{a} {parse_condition(condition)} {b}"
                     
                 case "ifz":
                     condition = bc.get("condition")
                     target = bc.get("target")
                     a = self.stack.pop()
-                    text = f"if ({a} " + parse_condition(condition) +" 0) {"
+                    cond_text = f"{a} {parse_condition(condition)} 0"
                     
                 case "goto":
-
+                    
+                    t = bc.get("target")
+                    if t < curpos:
+                        loop = True
+                    else:
+                        cont = True
+                        target.append(t)
                     pass
+
                 case "return":
                     continue
                 case _:
