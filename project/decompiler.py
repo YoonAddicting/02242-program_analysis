@@ -25,17 +25,17 @@ def parse_file_name(file_name) -> (str, str):
 def parse_condition(str):
     match str:
         case "eq":
-           return "=="
-        case "ne":
            return "!="
+        case "ne":
+           return "=="
         case "lt":
-           return "<"
-        case "ge":
            return ">="
+        case "ge":
+           return "<"
         case "gt":
-           return ">"
-        case "le":
            return "<="
+        case "le":
+           return ">"
         case _:
             raise Exception(f"condition not defined")
 """ 
