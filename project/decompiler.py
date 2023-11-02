@@ -11,7 +11,7 @@ def parse_file_name(file_name) -> (str, str):
     package_opt = re.search('^.*(?=/)', file_name)
     
     if name_opt is None:
-        raise "Could not find name"
+        raise Exception("Could not find name")
     else:
         name = name_opt.group()
     
@@ -37,7 +37,7 @@ def parse_condition(str):
         case "le":
            return "<="
         case _:
-            raise f"condition not defined"
+            raise Exception(f"condition not defined")
 """ 
         case "is":
            raise
@@ -86,11 +86,11 @@ class java_class:
         self.class_name = self.parent.name
         self.parse_access()
         if len(self.json.get('typeparams')) != 0:
-            raise "Typeparams are not implemented"
+            raise Exception("Typeparams are not implemented")
         if self.json.get('super').get('name') != "java/lang/Object":
-            raise "Non-object super classes not implemented"
+            raise Exception("Non-object super classes not implemented")
         if len(self.json.get('interfaces')) != 0:
-            raise "Inferfaces are not implemented"
+            raise Exception("Inferfaces are not implemented")
         self.parse_fields()
         self.parse_methods()
 
@@ -112,7 +112,7 @@ class java_class:
             field_type = f.get('type')
             # TODO: Check if field is not class or if it has args or annotations
             if field_type.get('kind') != "class" or len(field_type.get('args')) != 0 or len(field_type.get('annotations')) != 0:
-                raise "Unhandled field situation!"
+                raise Exception("Unhandled field situation!")
             # Parse the field path and type
             type_name = f.get('type').get('name')
             field_path, field_type = parse_file_name(type_name)
@@ -231,8 +231,8 @@ class java_method:
                                 self.stack.append("")
                             else:
                                 self.stack.append(self.locals[index])
-                        case "_": 
-                            raise f"Undefined load operation type: {opr_type}"
+                        case _: 
+                            raise Exception(f"Undefined load operation type: {opr_type}")
                     
                 case "new":
                     value = self.stack.pop()
@@ -250,7 +250,7 @@ class java_method:
                         self.stack.append(self.stack[-2])
                         self.stack.append(self.stack[-2])
                     else:
-                        raise "Unhandled dup"
+                        raise Exception("Unhandled dup")
                 case "dup_x1":
                     if bc.get('words') == 1 or len(self.stack) == 2:
                         self.stack.insert(-2, self.stack[-1])
@@ -258,7 +258,7 @@ class java_method:
                         self.stack.insert(-3, self.stack[-2])
                         self.stack.insert(-3, self.stack[-1])
                     else:
-                        raise "Unhandled dup_x1"
+                        raise Exception("Unhandled dup_x1")
                 case "dup_x2":
                     if bc.get('words') == 1 or len(self.stack) == 3:
                         self.stack.insert(-3, self.stack[-1])
@@ -266,7 +266,7 @@ class java_method:
                         self.stack.insert(-4, self.stack[-2])
                         self.stack.insert(-4, self.stack[-1])
                     else:
-                        raise "Unhandled dup_x2"
+                        raise Exception("Unhandled dup_x2")
                 case "store":
                     index = bc.get("index")
                     out = self.stack.pop()
@@ -302,7 +302,7 @@ class java_method:
                             b = self.stack.pop()
                             self.stack.append(f"({a}) % ({b})")
                         case _:
-                            raise "Binary operation not recognized"
+                            raise Exception("Binary operation not recognized")
                 case  "negate":
                     a = self.stack.pop()
                     self.stack.append(f"-({a})")
@@ -318,7 +318,7 @@ class java_method:
                                     self.parent.parent.add_import(f"{package_name}/{class_name}")
                                 method_name = bc.get('method').get('name')
                                 if len(bc.get('method').get('args')) != 0:
-                                    raise "Unhandled: Method invokation has arguments"
+                                    raise Exception("Unhandled: Method invokation has arguments")
                                 
                                 code = f"{class_name}.{method_name}()"
                                 self.method_body.append(code)
@@ -327,11 +327,11 @@ class java_method:
                             value = self.stack.pop()
                             value += "("
                             for arg in bc.get('method').get('args'):
-                                raise "Don't handle args for calling new classes"
+                                raise Exception("Don't handle args for calling new classes")
                             value += ")"
                             self.stack.append(value)
-                        case "_":
-                            raise f"Unhandled access type: {access}"
+                        case _:
+                            raise Exception(f"Unhandled access type: {access}")
                 case "put":
                     if not bc.get("static"):
                         field_name = bc.get("field").get("name")
@@ -341,9 +341,9 @@ class java_method:
                                 field.value = self.stack.pop()
                                 field_name_found = True
                         if not field_name_found:
-                            raise f"Could not find field {field_name}"
+                            raise Exception(f"Could not find field {field_name}")
                     else:
-                        raise "Unhandled put, not implemented for non-static fields"
+                        raise Exception("Unhandled put, not implemented for static fields")
                 case "if":
                     condition = bc.get("condition")
                     target = bc.get("target")
@@ -362,8 +362,8 @@ class java_method:
                     pass
                 case "return":
                     continue
-                case "_":
-                    raise f"Unhandled operation: {opr}"
+                case _:
+                    raise Exception(f"Unhandled operation: {opr}")
 
 
     
@@ -375,7 +375,7 @@ class java_method:
         if self.return_type == None:
             res += " void "
         else:
-            raise "Unhandled returntype when exporting code"
+            raise Exception("Unhandled returntype when exporting code")
         
         res += f"{self.function_name}("
         parsed_arguments = []
