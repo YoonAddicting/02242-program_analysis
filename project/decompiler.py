@@ -2,6 +2,7 @@ import json
 import re
 import os
 import glob
+import copy
 
 
 def parse_file_name(file_name) -> (str, str):
@@ -44,6 +45,12 @@ def parse_condition(str):
         case "isnot":
             pass
 """
+class condition:
+    def __init__(self, target, cond):
+        self.target = target
+        self.cond = cond
+        self.loop = False
+        self.body = []
 
 class java_file:
     def __init__(self, json):
@@ -196,14 +203,16 @@ class java_method:
                 path, arg_type = parse_file_name(param.get('type').get('type').get('name'))
                 self.arguments.append((f"{arg_type}[]", name))
                 self.locals.append(name)
-                
+                if path!= self.parent.parent.package and path != "java/lang":
+                    self.parent.parent.add_import(f"{path}/{arg_type}")
+
             elif param.get('type').get('kind') == "class":
                 name = self.generate_variable_name()
                 path, class_name = parse_file_name(param.get('type').get('name'))
                 self.arguments.append(class_name + " " + name)
                 self.locals.append(name)
 
-                if path!= self.parent.parent.package:
+                if path!= self.parent.parent.package and path != "java/lang":
                     self.parent.parent.add_import(f"{path}/{class_name}")
             else:
                 name = self.generate_variable_name()
@@ -213,13 +222,9 @@ class java_method:
 
     def parse_code(self):
         self.method_body = []
-        target = []
-        nextTarget = 0
-        cond = False
-        loop = False
-        cont = False
-        cond_body = []
-        cond_text = ""
+        Cmpopr = []
+        latest_cmp = None
+        next_cmp = None
         if self.function_name == "<init>":
             # Skip first two instructions if init
             bytecode = self.code.get('bytecode')[2:]
@@ -227,26 +232,32 @@ class java_method:
             bytecode = self.code.get('bytecode')
            
         for (curpos, bc) in enumerate(bytecode):
-            if len(target) != 0 and target[0] == curpos:
-                target.pop()
-                if loop:
-                    self.method_body.append(f"while ({cond_text}) "+"{\n")
-                    self.method_body.append(cond_body)
-                    self.method_body.append("}\n")
-                    cond_body = []
-                    cond = False
-                    loop = False
+            if len(Cmpopr) != 0 and latest_cmp.target == curpos:
+                code = ""
+                element = Cmpopr.pop()
+                if element.loop:
+                    code += "while "
+                elif element.cond !="":
+                        code += "if "
+                code += element.cond + "{\n"
+                code += element.body
+                code += "}"
+                if next_cmp is None:
+                    code += "\n"
                 else:
-                    if cond_text !="":
-                        self.method_body.append(f"if ({cond_text}) ")
-                    self.method_body.append("{\n")
-                    self.method_body.append(cond_body)
-                    self.method_body.append("}")
-                    if cont:
-                        self.method_body.append(" else ")
-                    else:
-                        self.method_body.append("\n")
-                pass
+                    code += " else "
+                
+                if len(Cmpopr) != 0:
+                    latest_cmp = Cmpopr[-1]
+                    latest_cmp.body.append(text)
+                else:
+                    latest_cmp = None
+                    self.method_body.append(text)
+                
+                if next_cmp is not None:
+                    Cmpopr.append(condition(next_cmp,""))
+                    next_cmp = None
+                
             opr = bc.get('opr')
             match opr:
                 case "load":
@@ -262,13 +273,17 @@ class java_method:
                             raise Exception(f"Undefined load operation type: {opr_type}")
                     
                 case "new":
-                    value = self.stack.pop()
+                    value = ""
+                    try:
+                        ref = self.stack.pop()
+                    except:
+                        ref = ""
                     package_name, class_name = parse_file_name(bc.get('class'))
                     # Add the import
-                    if package_name != self.parent.parent.package:
+                    if package_name != self.parent.parent.package and package_name != "java/lang":
                         self.parent.parent.add_import(f"{package_name}/{class_name}")
                     value += f"new {class_name}"
-                    self.stack.append(value)
+                    self.stack.append((ref,value))
 
                 case "dup":
                     if bc.get('words') == 1 or len(self.stack) == 1:
@@ -296,18 +311,29 @@ class java_method:
                         raise Exception("Unhandled dup_x2")
                 case "store":
                     index = bc.get("index")
-                    out = self.stack.pop()
-                    code = ""
-                    if index == len(locals):
-                        locals.append(self.generate_variable_name)
-                        code = bc.get(type)
-
-                    text = f"{code} {locals[index]} = {out}"
-                    
-                    if cond:
-                        cond_body.append(text)
+                    if bc.get("type") == "ref":
+                        stack_elem = self.stack.pop()
+                        if len(stack_elem) == 2:
+                            (rhs, ref) = stack_elem
+                        elif len(stack_elem) == 3:
+                            (lhs, rhs, ref) = stack_elem
+                            if lhs != "":
+                                raise Exception("Unhandled store, lhs not empty")
+                        
+                        while len(self.locals) <= index:
+                            self.locals.append(self.generate_variable_name())
+                        package_name, class_name = parse_file_name(ref.get('name'))
+                        if package_name != self.parent.parent.package and package_name != "java/lang":
+                            self.parent.parent.add_import(f"{package_name}/{class_name}")
+                        
+                        text = f"{class_name} {self.locals[index]} = {rhs}"
+                        
+                        if len(Cmpopr) != 0:
+                            latest_cmp.body.append(text)
+                        else:
+                            self.method_body.append(text)
                     else:
-                        self.method_body.append(text)
+                        raise Exception(f"Not implemented for non-ref type: {bc.get('type')}")
                     
                 case "push":
                     self.stack.append(bc.get("value"))
@@ -347,15 +373,15 @@ class java_method:
                             if bc.get('method').get('ref').get('kind') == "class":
                                 package_name, class_name = parse_file_name(bc.get('method').get('ref').get('name'))
                                 # Add the import
-                                if package_name != self.parent.parent.package:
+                                if package_name != self.parent.parent.package and package_name != "java/lang":
                                     self.parent.parent.add_import(f"{package_name}/{class_name}")
                                 method_name = bc.get('method').get('name')
                                 if len(bc.get('method').get('args')) != 0:
                                     raise Exception("Unhandled: Method invokation has arguments")
                                 
                                 code = f"{class_name}.{method_name}()"
-                                if cond:
-                                    cond_body.append(code)
+                                if len(Cmpopr) != 0:
+                                    latest_cmp.body.append(code)
                                 else:
                                     self.method_body.append(code)
 
@@ -370,68 +396,82 @@ class java_method:
                             if value.get("type") == "string":
                                 code = f'{ref}.{method_name}("{value.get("value")}")'
                             
-                            if cond:
-                                    cond_body.append(code)
+                            if len(Cmpopr) != 0:
+                                latest_cmp.body.append(code)
                             else:
                                 self.method_body.append(code)
 
                         case "special":
-                            value = self.stack.pop()
-                            value = self.stack.pop()
-                            value += "("
+                            (lhs, rhs) = self.stack.pop()
+                            (lhs, rhs) = self.stack.pop()
+                            rhs += "("
                             for arg in bc.get('method').get('args'):
                                 raise Exception("Don't handle args for calling new classes")
-                            value += ")"
-                            self.stack.append(value)
+                            rhs += ")"
+                            self.stack.append((lhs, rhs, bc.get('method').get('ref')))
                         case _:
                             raise Exception(f"Unhandled access type: {access}")
                 case "put":
                     if not bc.get("static"):
-                        field_name = bc.get("field").get("name")
-                        field_name_found = False
-                        for field in self.parent.fields:
-                            if field.name == field_name:
-                                field.value = self.stack.pop()
-                                field_name_found = True
-                        if not field_name_found:
-                            raise Exception(f"Could not find field {field_name}")
+                        (lhs, rhs, ref) = self.stack.pop()
+                        if lhs == "":
+                            field_name = bc.get("field").get("name")
+                            field_name_found = False
+                            for field in self.parent.fields:
+                                if field.name == field_name:
+                                    field.value = rhs
+                                    field_name_found = True
+                            if not field_name_found:
+                                raise Exception(f"Could not find field {field_name}")
+                        else:
+                            text = f"{lhs}.{bc.get('field').get('name')} = {rhs}"
+                            if len(Cmpopr) != 0:
+                                latest_cmp.body.append(text)
+                            else:
+                                self.method_body.append(text)
                     else:
                         raise Exception("Unhandled put, not implemented for static fields")
-                case "if":
+                case "if" | "ifz":
                     condition = bc.get("condition")
-                    target.append( bc.get("target"))
                     a = self.stack.pop()
-                    b = self.stack.pop()
-                    cond_text = f"{a} {parse_condition(condition)} {b}"
-                    
+                    b = 0
+                    if opr == "if":
+                        b = self.stack.pop()
+                    cond_text = f"{a} {parse_condition(condition)} {b}" 
+
+                    # if the latest is an else if ....
+                    if False:
+                        latest_cmp.cond = cond_text
+                    else:
+                        cond = condition(bc.get("target"), cond_text)
+                        Cmpopr.append(cond)
+                        latest_cmp = cond
+            
                 case "ifz":
                     condition = bc.get("condition")
-                    target.append(bc.get("target"))
                     a = self.stack.pop()
                     cond_text = f"{a} {parse_condition(condition)} 0"
-                    
+                    cond = condition(bc.get("target"), cond_text)
+                    Cmpopr.append(cond)
+                    latest_cmp = cond
                 case "goto":
-                    
-                    t = bc.get("target")
-                    if t < curpos:
-                        loop = True
-                    else:
-                        cont = True
-                        target.append(t)
-                    pass
+                    target = bc.get("target")
+                    if target < curpos:
+                        latest_cmp.loop = True
+                    else:                  
+                        next_cmp = target
 
                 case "get":
+                    package_name, class_name = parse_file_name(bc.get('field').get('class'))
+                    if package_name != self.parent.parent.package and package_name != "java/lang":
+                        self.parent.parent.add_import(f"{package_name}/{class_name}")
                     if bc.get("static"):
-                        package_name, class_name = parse_file_name(bc.get('field').get('class'))
-
-                        if package_name != self.parent.parent.package and package_name != "java/lang":
-                            self.parent.parent.add_import(f"{package_name}/{class_name}")
-                        
                         value = f"{class_name}.{bc.get('field').get('name')}"                        
-
                         self.stack.append(value)
                     else:
-                        raise Exception("Unhandled get, not implemented for non-static fields")
+                        value = self.stack.pop()
+                        value += f".{bc.get('field').get('name')}"
+                        self.stack.append(value)   
                 case "return":
                     continue
                 case _:
@@ -507,10 +547,10 @@ if __name__ == '__main__':
     os.chdir("project")
     
 
-    #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
     #decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
     #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/util/Utils.json')
     #decompile_dir('res0/dtu/deps/simple/')
-    decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/tricky/Tricky.json')
 
     
