@@ -2,12 +2,12 @@ import glob
 import unittest
 import filecmp
 import subprocess
-pathtodir = "../ass05/"
+
 
 class TestDtuDeps(unittest.TestCase):
     def test_decompile(self):
         from decompiler import decompile_dir
-        
+        pathtodir = "../ass05/"
         i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/simple/"
         decompile_dir(i_dir, "res")
         i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/util/"
