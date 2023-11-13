@@ -506,14 +506,14 @@ def decompile_file(dep, res_path = "res"):
     file = json.loads(file_object.read())
     
     try:
-        os.mkdir("res")
+        os.mkdir(res_path)
     except:
         pass
 
     jfile = java_file(file)
 
     o_code = jfile.export_code()
-    return_path = ".."
+    return_path = "../../"
     os.chdir(res_path)
     package = jfile.package +"/"
     path = re.findall('[^/]+(?=/)',package)
