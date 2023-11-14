@@ -6,6 +6,9 @@ import copy
 
 
 def parse_file_name(file_name) -> (str, str):
+    if file_name == None:
+        return ("", "")
+    
     name = ""
     package = ""
     name_opt = re.search('[^/]*$', file_name)
@@ -22,6 +25,17 @@ def parse_file_name(file_name) -> (str, str):
         package = package_opt.group()
     
     return package, name
+def parse_to_string(v):
+    if isinstance(v,str):
+        return v
+    
+    t = v.get("type")
+    v = v.get("value")
+    if t == "string":
+        
+        v = repr(v)
+        v = v.replace("'", '"') 
+    return str(v)
 
 def parse_condition(str):
     match str:
@@ -46,10 +60,11 @@ def parse_condition(str):
             pass
 """
 class condition:
-    def __init__(self, target, cond):
+    def __init__(self, target, cond, loop, cont):
         self.target = target
         self.cond = cond
         self.loop = False
+        self.cont = False
         self.body = []
 
 class java_file:
@@ -222,9 +237,11 @@ class java_method:
 
     def parse_code(self):
         self.method_body = []
+        # the conditionals currently unfinished
         Cmpopr = []
+        # for ease of use
         latest_cmp = None
-        next_cmp = None
+
         if self.function_name == "<init>":
             # Skip first two instructions if init
             bytecode = self.code.get('bytecode')[2:]
@@ -232,45 +249,47 @@ class java_method:
             bytecode = self.code.get('bytecode')
            
         for (curpos, bc) in enumerate(bytecode):
+            # If the current conditional is done
             if len(Cmpopr) != 0 and latest_cmp.target == curpos:
+                # Build the code output
                 code = ""
                 element = Cmpopr.pop()
                 if element.loop:
                     code += "while "
                 elif element.cond !="":
                         code += "if "
-                code += element.cond + "{\n"
-                code += element.body
+                code += "(" + element.cond + ") {\n"
+                for e in element.body:
+                    code += e + "\n"
                 code += "}"
-                if next_cmp is None:
-                    code += "\n"
-                else:
+                if element.cont:
                     code += " else "
+                else:
+                    code += "\n" 
                 
+                # If there are still conditionals load into latest
                 if len(Cmpopr) != 0:
                     latest_cmp = Cmpopr[-1]
-                    latest_cmp.body.append(text)
+                    latest_cmp.body.append(code)
                 else:
                     latest_cmp = None
-                    self.method_body.append(text)
+                    self.method_body.append(code)
                 
-                if next_cmp is not None:
-                    Cmpopr.append(condition(next_cmp,""))
-                    next_cmp = None
-                
+                if element.cont:
+                    t = bytecode[curpos-1].get("target")
+                    Cmpopr.append(c(t, "", False, False))
+
             opr = bc.get('opr')
             match opr:
                 case "load":
-                    opr_type = bc.get("type")
-                    match opr_type:
-                        case "ref":
-                            index = bc.get("index")
-                            if len(self.locals) <= index:
-                                self.stack.append("")
-                            else:
-                                self.stack.append(self.locals[index])
-                        case _: 
-                            raise Exception(f"Undefined load operation type: {opr_type}")
+                    
+                    # works for ref at least
+                    index = bc.get("index")
+                    if len(self.locals) <= index:
+                        self.stack.append("")
+                    else:
+                        self.stack.append(self.locals[index])
+                        
                     
                 case "new":
                     value = ""
@@ -311,91 +330,145 @@ class java_method:
                         raise Exception("Unhandled dup_x2")
                 case "store":
                     index = bc.get("index")
-                    if bc.get("type") == "ref":
-                        stack_elem = self.stack.pop()
+                    stack_elem = self.stack.pop()
+
+                    # if the element is ref
+                    if bc.get('type') == "ref":
                         if len(stack_elem) == 2:
                             (rhs, ref) = stack_elem
                         elif len(stack_elem) == 3:
                             (lhs, rhs, ref) = stack_elem
-                            if lhs != "":
-                                raise Exception("Unhandled store, lhs not empty")
-                        
-                        while len(self.locals) <= index:
-                            self.locals.append(self.generate_variable_name())
+                        if lhs != "":
+                            raise Exception("Unhandled store, lhs not empty")
                         package_name, class_name = parse_file_name(ref.get('name'))
                         if package_name != self.parent.parent.package and package_name != "java/lang":
                             self.parent.parent.add_import(f"{package_name}/{class_name}")
-                        
-                        text = f"{class_name} {self.locals[index]} = {rhs}"
-                        
-                        if len(Cmpopr) != 0:
-                            latest_cmp.body.append(text)
-                        else:
-                            self.method_body.append(text)
+                    
+                        type = f"{class_name}"
+                        value = f"{rhs}"
                     else:
-                        raise Exception(f"Not implemented for non-ref type: {bc.get('type')}")
+                        type = bc.get("type")
+                        value = stack_elem
+
+                   
+                    new = False
+                    while len(self.locals) <= index:
+                        self.locals.append(self.generate_variable_name())
+                        new = True
+                    
+                        
+
+                    if new:
+                        text = f"{type} {self.locals[index]} = {value};"
+                    else:
+                        text = f"{self.locals[index]} = {value};"
+                    
+                    if len(Cmpopr) != 0:
+                        latest_cmp.body.append(text)
+                    else:
+                        self.method_body.append(text)
                     
                 case "push":
                     self.stack.append(bc.get("value"))
                 case "binary":
                     type = bc.get("operant")
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    a = parse_to_string(a)
+                    b = parse_to_string(b)
+                    
                     match type:
                         case "add":
-                            a = self.stack.pop()
-                            b = self.stack.pop()
                             self.stack.append(f"({a}) + ({b})")
                         case "sub":
-                            a = self.stack.pop()
-                            b = self.stack.pop()
                             self.stack.append(f"({a}) - ({b})")
                         case "mul":
-                            a = self.stack.pop()
-                            b = self.stack.pop()
                             self.stack.append(f"({a}) * ({b})")
                         case "div":
-                            a = self.stack.pop()
-                            b = self.stack.pop()
                             self.stack.append(f"({a}) / ({b})")
                         case "rem":
-                            a = self.stack.pop()
-                            b = self.stack.pop()
                             self.stack.append(f"({a}) % ({b})")
                         case _:
-                            raise Exception("Binary operation not recognized")
+                            raise Exception("operation not recognized")
                 case  "negate":
                     a = self.stack.pop()
                     self.stack.append(f"-({a})")
-                
+                case "bitopr":
+                    type = bc.get("operant")
+                    a = self.stack.pop()
+                    b = self.stack.pop()
+                    match type:
+                        case "shl":
+                            self.stack.append(f"({a}) << ({b})")
+                        case "shr":
+                            self.stack.append(f"({a}) >> ({b})")
+                        case "ushr":
+                            self.stack.append(f"({a}) >>> ({b})")
+                        case "and":
+                            self.stack.append(f"({a}) & ({b})")
+                        case "or":
+                            self.stack.append(f"({a}) | ({b})")
+                        case "xor":
+                            self.stack.append(f"({a}) ^ ({b})")
+                        case _:
+                            raise Exception("Logic operation not recognized")
+
                 case "invoke":
                     access = bc.get('access')
                     match access:
                         case "static":
                             if bc.get('method').get('ref').get('kind') == "class":
+                                # pop potential arguments
+                                args = []
+                                for i in range(len(bc.get("method").get("args"))):
+                                    a = self.stack.pop()
+                                    a = parse_to_string(a)
+                                    args.append(a)
+
                                 package_name, class_name = parse_file_name(bc.get('method').get('ref').get('name'))
                                 # Add the import
                                 if package_name != self.parent.parent.package and package_name != "java/lang":
                                     self.parent.parent.add_import(f"{package_name}/{class_name}")
                                 method_name = bc.get('method').get('name')
-                                if len(bc.get('method').get('args')) != 0:
-                                    raise Exception("Unhandled: Method invokation has arguments")
                                 
-                                code = f"{class_name}.{method_name}()"
-                                if len(Cmpopr) != 0:
-                                    latest_cmp.body.append(code)
+                                """if len(bc.get('method').get('args')) != 0:
+                                    raise Exception("Unhandled: Method invokation has arguments")
+                                """
+                                code = f"{class_name}.{method_name}("
+                                for i, arg in enumerate(args):
+                                    if i != 0:
+                                        code += ", "
+                                    code += arg
+                                code += ")"
+                                if bc.get("method").get("returns") == None:
+                                    code += ";"
+                                    if len(Cmpopr) != 0:
+                                        latest_cmp.body.append(code)
+                                    else:
+                                        self.method_body.append(code)
                                 else:
-                                    self.method_body.append(code)
-
+                                    self.stack.append(code)
                         case "virtual":
-                            value = self.stack.pop()
+                            # pop potential arguments
+                            args = []
+                            for i in range(len(bc.get("method").get("args"))):
+                                a = self.stack.pop()
+                                a = parse_to_string(a)
+                                args.append(a)
                             ref = self.stack.pop()
                             method_name = bc.get("method").get("name")
                             
-                            arg_name = bc.get("method").get("args")[0].get("name")
+                            """arg_name = bc.get("method").get("args")[0].get("name")
                             if arg_name != "java/lang/String":
                                 raise Exception(f"Undandled argument type: {arg_name}")
-                            if value.get("type") == "string":
-                                code = f'{ref}.{method_name}("{value.get("value")}")'
-                            
+                            """
+                            code = f'{ref}.{method_name}('
+                            for i, arg in enumerate(args):
+                                if i != 0:
+                                    code += ", "
+                                code += arg
+                            code += ");"
+                    
                             if len(Cmpopr) != 0:
                                 latest_cmp.body.append(code)
                             else:
@@ -432,34 +505,61 @@ class java_method:
                     else:
                         raise Exception("Unhandled put, not implemented for static fields")
                 case "if" | "ifz":
-                    condition = bc.get("condition")
+                    # Make condition text
+                    c = bc.get("condition")
                     a = self.stack.pop()
+                    a = parse_to_string(a)
                     b = 0
                     if opr == "if":
                         b = self.stack.pop()
-                    cond_text = f"{a} {parse_condition(condition)} {b}" 
+                        b = parse_to_string(b)
+                    cond_text = f"({b}) {parse_condition(c)} ({a})" 
 
-                    # if the latest is an else if ....
-                    if False:
-                        latest_cmp.cond = cond_text
-                    else:
-                        cond = condition(bc.get("target"), cond_text)
-                        Cmpopr.append(cond)
-                        latest_cmp = cond
-            
-                case "ifz":
-                    condition = bc.get("condition")
-                    a = self.stack.pop()
-                    cond_text = f"{a} {parse_condition(condition)} 0"
-                    cond = condition(bc.get("target"), cond_text)
+                    # Determine if it is loop or if else
+                    loop = False
+                    cont = True
+                    target = bc.get("target")
+                    target_bc = bytecode[target-1]
+                    if target_bc.get('opr') == "goto":
+                        t = target_bc.get('target')
+                        if t < curpos:
+                            loop = True
+                        else:
+                            cont = True
+
+                    cond = condition(target, cond_text, loop, cont)
                     Cmpopr.append(cond)
                     latest_cmp = cond
+            
                 case "goto":
+                    # TODO handle break statements
+                    # TODO handle continue statements
+                    # TODO handle if else
+                    
                     target = bc.get("target")
+                    
                     if target < curpos:
-                        latest_cmp.loop = True
+                        latest_cmp.body.append("continue;\n")
+                    else:
+                        latest_cmp.body.append("break;\n")
+                    """if target < curpos:
+                        if latest_cmp.loop:
+                            # Does not work
+                            # latest_cmp.body.append("continue") 
+                            pass
+                        else:
+                            for e in Cmpopr:
+                                if e.start < target:
+                                    pass
+                            pass
                     else:                  
-                        next_cmp = target
+                        # either break or if else
+                        # if target exists in cmpopr
+                        #  --> write break
+                        # else:
+                        # next_cmp = target
+                        pass
+                    """
 
                 case "get":
                     package_name, class_name = parse_file_name(bc.get('field').get('class'))
@@ -473,7 +573,15 @@ class java_method:
                         value += f".{bc.get('field').get('name')}"
                         self.stack.append(value)   
                 case "return":
-                    continue
+                    if bc.get("type") == None:
+                        continue
+                    text = self.stack.pop()
+                    text = parse_to_string(text)
+                    text = "return " + text + ";"
+                    if len(Cmpopr) != 0:
+                        latest_cmp.body.append(text)
+                    else:
+                        self.method_body.append(text)
                 case _:
                     raise Exception(f"Unhandled operation: {opr}")
 
@@ -487,15 +595,15 @@ class java_method:
         if self.return_type == None:
             res += " void "
         else:
-            raise Exception("Unhandled returntype when exporting code")
+            res += " " + self.return_type.get("base") + " "
         
         res += f"{self.function_name}("
         parsed_arguments = []
         for argument in self.arguments:
-            parsed_arguments.append(f"{argument[0]} {argument[1]}")
+            parsed_arguments.append(argument)
         res += ", ".join(parsed_arguments) + ") {\n\t"
-        res += ";\n\t".join(self.method_body)
-        res += ";\n}"
+        res += "\n\t".join(self.method_body)
+        res += "\n}"
         
         return res
     
@@ -547,9 +655,9 @@ if __name__ == '__main__':
     os.chdir("project")
     
 
-    decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    #decompile_file('../ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
     #decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
-    #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/util/Utils.json')
+    decompile_file('../ass05/course-02242-examples/decompiled/dtu/compute/exec/Calls.json')
     #decompile_dir('res0/dtu/deps/simple/')
     #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/tricky/Tricky.json')
 
