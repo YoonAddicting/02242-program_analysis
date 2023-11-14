@@ -655,9 +655,9 @@ if __name__ == '__main__':
     os.chdir("project")
     
 
-    #decompile_file('../ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
+    decompile_file('../ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
     #decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
-    decompile_file('../ass05/course-02242-examples/decompiled/dtu/compute/exec/Calls.json')
+    #decompile_file('../ass05/course-02242-examples/decompiled/dtu/compute/exec/Calls.json')
     #decompile_dir('res0/dtu/deps/simple/')
     #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/tricky/Tricky.json')
 
