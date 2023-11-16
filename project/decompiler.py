@@ -63,8 +63,8 @@ class condition:
     def __init__(self, target, cond, loop, cont):
         self.target = target
         self.cond = cond
-        self.loop = False
-        self.cont = False
+        self.loop = loop
+        self.cont = cont
         self.body = []
 
 class java_file:
@@ -78,7 +78,12 @@ class java_file:
         
         self.java_class = java_class(self)
     
-    def add_import(self, import_name : str):
+    def add_import(self, path, import_name : str):
+        if self.package == path or path == "java/lang" or path == "":
+            return
+        if import_name == None:
+            return
+        
         import_name = import_name.replace("/",".")
         self.imports.append(import_name)
 
@@ -134,13 +139,12 @@ class java_class:
             field_type = f.get('type')
             # TODO: Check if field is not class or if it has args or annotations
             if field_type.get('kind') != "class" or len(field_type.get('args')) != 0 or len(field_type.get('annotations')) != 0:
-                raise Exception("Unhandled field situation!")
+                print("Unhandled field situation!")
             # Parse the field path and type
             type_name = f.get('type').get('name')
             field_path, field_type = parse_file_name(type_name)
             # Add an import if the other class isn't in the same folder
-            if self.parent.package != field_path:
-                self.parent.add_import(type_name)
+            self.parent.add_import(field_path ,type_name)
             
             access = ""
             for a in f.get("access"):
@@ -215,11 +219,10 @@ class java_method:
         for param in params:
             if param.get('type').get('kind') == "array":
                 name = self.generate_variable_name()
-                path, arg_type = parse_file_name(param.get('type').get('type').get('name'))
-                self.arguments.append((f"{arg_type}[]", name))
+                path, arg_type = parse_file_name(param.get('type').get('type').get('base'))
+                self.arguments.append(f"{arg_type}[] {name}")
                 self.locals.append(name)
-                if path!= self.parent.parent.package and path != "java/lang":
-                    self.parent.parent.add_import(f"{path}/{arg_type}")
+                self.parent.parent.add_import(path, f"{path}/{arg_type}")
 
             elif param.get('type').get('kind') == "class":
                 name = self.generate_variable_name()
@@ -227,8 +230,7 @@ class java_method:
                 self.arguments.append(class_name + " " + name)
                 self.locals.append(name)
 
-                if path!= self.parent.parent.package and path != "java/lang":
-                    self.parent.parent.add_import(f"{path}/{class_name}")
+                self.parent.parent.add_import(path, f"{path}/{class_name}")
             else:
                 name = self.generate_variable_name()
                 self.arguments.append(param.get("type").get("base") + " " + name)
@@ -253,15 +255,16 @@ class java_method:
             if len(Cmpopr) != 0 and latest_cmp.target == curpos:
                 # Build the code output
                 code = ""
+                nest = len(Cmpopr)
+
                 element = Cmpopr.pop()
                 if element.loop:
                     code += "while "
                 elif element.cond !="":
                         code += "if "
-                code += "(" + element.cond + ") {\n"
-                for e in element.body:
-                    code += e + "\n"
-                code += "}"
+                code += "(" + element.cond + ") {\n"+"\t"*(nest+1)
+                code += ("\n"+"\t"*(nest+1)).join(element.body)
+                code += "\n"+"\t"*nest+"}"
                 if element.cont:
                     code += " else "
                 else:
@@ -299,8 +302,8 @@ class java_method:
                         ref = ""
                     package_name, class_name = parse_file_name(bc.get('class'))
                     # Add the import
-                    if package_name != self.parent.parent.package and package_name != "java/lang":
-                        self.parent.parent.add_import(f"{package_name}/{class_name}")
+                    
+                    self.parent.parent.add_import(package_name, f"{package_name}/{class_name}")
                     value += f"new {class_name}"
                     self.stack.append((ref,value))
 
@@ -334,18 +337,23 @@ class java_method:
 
                     # if the element is ref
                     if bc.get('type') == "ref":
-                        if len(stack_elem) == 2:
-                            (rhs, ref) = stack_elem
-                        elif len(stack_elem) == 3:
-                            (lhs, rhs, ref) = stack_elem
-                        if lhs != "":
-                            raise Exception("Unhandled store, lhs not empty")
-                        package_name, class_name = parse_file_name(ref.get('name'))
-                        if package_name != self.parent.parent.package and package_name != "java/lang":
-                            self.parent.parent.add_import(f"{package_name}/{class_name}")
+                        if not isinstance(stack_elem, str):
+                            if len(stack_elem) == 2:
+                                lhs = ""
+                                (rhs, ref) = stack_elem
+                            elif len(stack_elem) == 3:
+                                (lhs, rhs, ref) = stack_elem
+                            if lhs != "":
+                                raise Exception("Unhandled store, lhs not empty")
+                            package_name, class_name = parse_file_name(ref.get('name'))
+                            
+                            self.parent.parent.add_import(package_name, f"{package_name}/{class_name}")
                     
-                        type = f"{class_name}"
-                        value = f"{rhs}"
+                            type = f"{class_name}"
+                            value = f"{rhs}"
+                        else:
+                            type = f"[]"
+
                     else:
                         type = bc.get("type")
                         value = stack_elem
@@ -357,7 +365,7 @@ class java_method:
                         new = True
                     
                         
-
+                    value = parse_to_string(value)
                     if new:
                         text = f"{type} {self.locals[index]} = {value};"
                     else:
@@ -390,13 +398,25 @@ class java_method:
                             self.stack.append(f"({a}) % ({b})")
                         case _:
                             raise Exception("operation not recognized")
+                case "incr":
+                    index = bc.get("index")
+                    amount = bc.get("amount")
+                    if amount < 0:
+                        code = f"{self.locals[index]} -= {abs(amount)}"
+                    else:
+                        code = f"{self.locals[index]} += {amount}"
+                    
+                    if len(Cmpopr) != 0:
+                        latest_cmp.body.append(code)
+                    else:
+                        self.method_body.append(code)
                 case  "negate":
                     a = self.stack.pop()
                     self.stack.append(f"-({a})")
                 case "bitopr":
                     type = bc.get("operant")
-                    a = self.stack.pop()
                     b = self.stack.pop()
+                    a = self.stack.pop()
                     match type:
                         case "shl":
                             self.stack.append(f"({a}) << ({b})")
@@ -412,7 +432,32 @@ class java_method:
                             self.stack.append(f"({a}) ^ ({b})")
                         case _:
                             raise Exception("Logic operation not recognized")
-
+                case "array_load":
+                    index = self.stack.pop()
+                    ref = self.stack.pop()
+                    index = parse_to_string(index)
+                        
+                    self.stack.append(f"{ref}[{index}]")
+                case "array_store":
+                    value = self.stack.pop()
+                    index = self.stack.pop()
+                    value = parse_to_string(value)
+                    index = parse_to_string(index)
+                    ref = self.stack.pop()
+                    code = f"{ref}[{index}] = {value};"
+                    if len(Cmpopr) != 0:
+                        latest_cmp.body.append(code)
+                    else:
+                        self.method_body.append(code)
+                case "newarray":
+                    dim = bc.get("dim")
+                    name = self.generate_variable_name()
+                    for i in range(dim):
+                        self.stack.pop()
+                    self.stack.append(name)
+                case "arraylength":
+                    array = self.stack.pop()
+                    self.stack.append(f"{array}.length")
                 case "invoke":
                     access = bc.get('access')
                     match access:
@@ -427,8 +472,7 @@ class java_method:
 
                                 package_name, class_name = parse_file_name(bc.get('method').get('ref').get('name'))
                                 # Add the import
-                                if package_name != self.parent.parent.package and package_name != "java/lang":
-                                    self.parent.parent.add_import(f"{package_name}/{class_name}")
+                                self.parent.parent.add_import(package_name, f"{package_name}/{class_name}")
                                 method_name = bc.get('method').get('name')
                                 
                                 """if len(bc.get('method').get('args')) != 0:
@@ -517,7 +561,7 @@ class java_method:
 
                     # Determine if it is loop or if else
                     loop = False
-                    cont = True
+                    cont = False
                     target = bc.get("target")
                     target_bc = bytecode[target-1]
                     if target_bc.get('opr') == "goto":
@@ -530,7 +574,13 @@ class java_method:
                     cond = condition(target, cond_text, loop, cont)
                     Cmpopr.append(cond)
                     latest_cmp = cond
-            
+                case "throw":
+                    excp = self.stack[-1]
+                    text = "throw " + str(excp)
+                    if len(Cmpopr) != 0:
+                        latest_cmp.body.append(text)
+                    else:
+                        self.method_body.append(text)
                 case "goto":
                     # TODO handle break statements
                     # TODO handle continue statements
@@ -563,8 +613,7 @@ class java_method:
 
                 case "get":
                     package_name, class_name = parse_file_name(bc.get('field').get('class'))
-                    if package_name != self.parent.parent.package and package_name != "java/lang":
-                        self.parent.parent.add_import(f"{package_name}/{class_name}")
+                    self.parent.parent.add_import(package_name, f"{package_name}/{class_name}")
                     if bc.get("static"):
                         value = f"{class_name}.{bc.get('field').get('name')}"                        
                         self.stack.append(value)
@@ -648,16 +697,21 @@ def decompile_dir(path, res_path = "res"):
     
     dir = glob.glob(f'{path}**/*.json',recursive=True)
     for file in dir:
+        file = file.replace("\\","/")
         decompile_file(file, res_path)
     
 
 if __name__ == '__main__':
     os.chdir("project")
     
-
-    decompile_file('../ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
-    #decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
+    
+    #decompile_file('../ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
+    decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/simple/')
+    decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/util/')
+    decompile_dir('../ass05/course-02242-examples/decompiled/dtu/deps/tricky/')
     #decompile_file('../ass05/course-02242-examples/decompiled/dtu/compute/exec/Calls.json')
+    #decompile_file('../ass05/course-02242-examples/src/executables/java/dtu/compute/exec/Array.json')
+    
     #decompile_dir('res0/dtu/deps/simple/')
     #decompile_file('../ass05/course-02242-examples/decompiled/dtu/deps/tricky/Tricky.json')
 
