@@ -85,7 +85,8 @@ class java_file:
             return
         
         import_name = import_name.replace("/",".")
-        self.imports.append(import_name)
+        if import_name not in self.imports:
+            self.imports.append(import_name)
 
     def export_code(self):
         code = ""
