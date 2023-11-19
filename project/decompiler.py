@@ -205,6 +205,7 @@ class java_method:
         self.parent = parent
         self.stack = []
         self.locals = []
+        self.parse_typeparams(json.get("typeparams"))
         self.parse_arguments(json.get("params"))
         self.code = json.get("code")
         self.annotations = json.get("annotations")
@@ -214,6 +215,11 @@ class java_method:
         old_number = self.variable_number
         self.variable_number += 1
         return f"n{old_number}"
+    
+    def parse_typeparams(self, typeparams):
+        self.typeparams = []
+        for typeparam in typeparams:
+            self.typeparams.append(typeparam.get("name"))
 
     def parse_arguments(self, params):
         self.arguments = []
