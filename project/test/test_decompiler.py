@@ -41,9 +41,6 @@ class CompileTest:
             os.remove(file)
 
 
-    
-
-
 class TestDtuDepsSimpleUtils(unittest.TestCase):
     def test_decompile_simple_comp_source(self):
         pathtodir = "ass05/"
@@ -56,7 +53,6 @@ class TestDtuDepsSimpleUtils(unittest.TestCase):
                                 sc_path+"util/Utils.java"]) 
         from project.decompiler import decompile_dir
         i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/simple/"
-        print(i_dir)
         decompile_dir(i_dir, "project/res")
         i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/util/"
         decompile_dir(i_dir, "project/res")
@@ -93,7 +89,6 @@ class TestDtuDepsSimpleUtils(unittest.TestCase):
                                 sc_path+"util/Utils.java"]) 
         from project.decompiler import decompile_dir
         i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/simple/"
-        print(i_dir)
         decompile_dir(i_dir, "project/res")
         i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/util/"
         decompile_dir(i_dir, "project/res")
@@ -117,17 +112,84 @@ class TestDtuDepsSimpleUtils(unittest.TestCase):
         assert(len(mismatch) == 0)
         assert(len(errors) == 0)
 
+
+class TestDtuDepsTricky(unittest.TestCase):
+    def test_decompile_tricky_source(self):
+        pathtodir = "ass05/"
+        # Compile tricky with java 11
+        sc_path = pathtodir+"course-02242-examples/src/dependencies/java/dtu/deps/"
+        compiler = CompileTest(sc_path, 
+                               pathtodir+"course-02242-examples/decompiled/", 
+                               [sc_path+"tricky/Tricky.java", 
+                                sc_path+"simple/Example.java", 
+                                sc_path+"simple/Other.java", 
+                                sc_path+"util/Utils.java"])
+        from project.decompiler import decompile_dir
+        i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/simple/"
+        decompile_dir(i_dir, "project/res")
+        i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/util/"
+        decompile_dir(i_dir, "project/res")
+        i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/tricky/"
+        decompile_dir(i_dir, "project/res")
+        res_dir = "project/res/dtu/deps/"
+        # Compile res_dir
+        files = glob.glob(res_dir+"**/*.java", recursive=True)
+        subprocess.run(["javac", "-cp", res_dir, *files], check=True)
+        # Create json of res
+        files = glob.glob(res_dir+"**/*.class", recursive=True)
+        for file in files:
+            target = file[:-6]+".json"
+            subprocess.run(["jvm2json", "-s", file, "-t", target])
+            pretty_print_json(target)
         
+        decompile_dir(res_dir, "project/res2")
+        # compare res_dir and res2_dir
+        res2_dir = "project/res2/dtu/deps/"
+        files = ["simple/Example.java", "simple/Other.java","util/Utils.java", "tricky/Tricky.java"]
+        match, mismatch, errors = filecmp.cmpfiles(res_dir, res2_dir, files)
+        print(f"match: {match}")
+        print(f"mismatch: {mismatch}")
+        print(f"errors: {errors}")
+        assert(len(mismatch) == 0)
+        assert(len(errors) == 0)
 
-    # TODO Create test that compares original json with decompiled json
+    def test_decompile_tricky_json(self):
+        pathtodir = "ass05/"
+        # Compile simple with java 11
+        sc_path = pathtodir+"course-02242-examples/src/dependencies/java/dtu/deps/"
+        compiler = CompileTest(sc_path, 
+                               pathtodir+"course-02242-examples/decompiled/", 
+                               [sc_path+"tricky/Tricky.java", 
+                                sc_path+"simple/Example.java", 
+                                sc_path+"simple/Other.java", 
+                                sc_path+"util/Utils.java"])
+        from project.decompiler import decompile_dir
+        i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/simple/"
+        decompile_dir(i_dir, "project/res")
+        i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/util/"
+        decompile_dir(i_dir, "project/res")
+        i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/tricky/"
+        decompile_dir(i_dir, "project/res")
+        res_dir = "project/res/dtu/deps/"
+        # Compile res_dir
+        files = glob.glob(res_dir+"**/*.java", recursive=True)
+        subprocess.run(["javac", "-cp", res_dir, *files], check=True)
+        # Create json of res
+        files = glob.glob(res_dir+"**/*.class", recursive=True)
+        for file in files:
+            target = file[:-6]+".json"
+            subprocess.run(["jvm2json", "-s", file, "-t", target])
+            pretty_print_json(target)
 
-
-        
-
+        i_dir = pathtodir+"course-02242-examples/decompiled/dtu/deps/"
+        files = ["simple/Example.json", "simple/Other.json","util/Utils.json", "tricky/Tricky.json"]
+        match, mismatch, errors = filecmp.cmpfiles(res_dir, i_dir, files)
+        print(f"match: {match}")
+        print(f"mismatch: {mismatch}")
+        print(f"errors: {errors}")
+        assert(len(mismatch) == 0)
+        assert(len(errors) == 0)
 
 if __name__ == "__main__":
     unittest.main()
-
-        
-
 
