@@ -226,7 +226,10 @@ class java_method:
         for param in params:
             if param.get('type').get('kind') == "array":
                 name = self.generate_variable_name()
-                path, arg_type = parse_file_name(param.get('type').get('type').get('base'))
+                if param.get('type').get('type').get('kind') != "class":
+                    path, arg_type = parse_file_name(param.get('type').get('type').get('base'))
+                else:
+                    path, arg_type = parse_file_name(param.get('type').get('type').get('name'))
                 self.arguments.append(f"{arg_type}[] {name}")
                 self.locals.append(name)
                 self.parent.parent.add_import(path, f"{path}/{arg_type}")
@@ -240,7 +243,11 @@ class java_method:
                 self.parent.parent.add_import(path, f"{path}/{class_name}")
             else:
                 name = self.generate_variable_name()
-                self.arguments.append(param.get("type").get("base") + " " + name)
+                if param.get('type').get('kind') == "typevar":
+                    typevar = param.get('type').get('name')
+                    self.arguments.append(f"{typevar} {name}")
+                else:
+                    self.arguments.append(param.get("type").get("base") + " " + name)
                 self.locals.append(name)
                 
 
