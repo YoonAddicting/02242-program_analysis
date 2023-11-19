@@ -555,7 +555,7 @@ class java_method:
                             if not field_name_found:
                                 raise Exception(f"Could not find field {field_name}")
                         else:
-                            text = f"{lhs}.{bc.get('field').get('name')} = {rhs}"
+                            text = f"{lhs}.{bc.get('field').get('name')} = {rhs};"
                             if len(Cmpopr) != 0:
                                 latest_cmp.body.append(text)
                             else:
@@ -655,6 +655,10 @@ class java_method:
             return ""
         res = ""
         res += " ".join(self.access)
+        if len(self.typeparams) != 0:
+            res += " <"
+            res += ", ".join(self.typeparams)
+            res += ">"
         if self.return_type == None:
             res += " void "
         else:
