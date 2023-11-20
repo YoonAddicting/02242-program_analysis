@@ -2,42 +2,44 @@ package dtu.compute.exec;
 
 class Array {
 
-    @Case
+    
     public static int first(int[] vals) {
+        if(true){
+            vals = new int[3];
+        } else {
+            int[][] n_vals = new int[3][3];
+        }
         return vals[0];
     }
 
-    @Case
-    public static int firstSafe(int[] vals) {
-        assert vals.length >= 1;
-        return vals[0];
-    }
-
-    @Case
+    
     public static int access(int i, int[] vals) {
+        if (i == 0){
+            int n_vals[][] = {{1, 2}, {3, 4}, {5, 6}};
+        } else if (i == 1){
+            i = 0;
+        }
         return vals[i];
     }
 
-    @Case
+    
     public static int newArray() {
         int vals[] = {1, 2, 3};
         return vals[0];
     }
 
-    @Case
+    
     public static int newArrayOutOfBounds() {
         int vals[] = {1, 2, 3};
         return vals[4];
     }
 
-    @Case
+    
     public static int accessSafe(int i, int[] vals) {
-        assert 0 <= i;
-        assert i < vals.length;
         return vals[i];
     }
 
-    @Case
+    
     public static void bubbleSort(int[] vals) {
         int n = vals.length;
         while (n > 1) {
@@ -54,13 +56,13 @@ class Array {
         }
     }
 
-    @Case
+    
     public static int aWierdOneOutOfBounds() {
         int vals[] = {0,1,4};
         return vals[vals[2]];
     }
 
-    @Case
+    
     public static int aWierdOneWithinBounds() {
         int vals[] = {0,1,4};
         return vals[vals[1]];
