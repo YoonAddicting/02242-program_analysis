@@ -74,10 +74,24 @@ class java_file:
     def __init__(self, json):
         self.json = json
         file_name = json.get('name')
-        
-        self.package, self.name = parse_file_name(file_name)
+
+        innerclasses = self.json.get("innerclasses")
+        if len(innerclasses) > 0:
+            self.is_innerclass = False
+            for innerclass in innerclasses:
+                if file_name == innerclass.get("class"):
+                    self.is_innerclass = True
+                    self.name = innerclass.get("name")
+                    self.package, _ = parse_file_name(file_name)
+        else:
+            self.is_innerclass = False
+
+
+        if not self.is_innerclass:
+            self.package, self.name = parse_file_name(file_name)
         
         self.imports = []
+
         
         self.java_class = java_class(self)
     
@@ -120,12 +134,27 @@ class java_class:
             raise Exception("Typeparams are not implemented")
         if self.json.get('super').get('name') != "java/lang/Object":
             raise Exception("Non-object super classes not implemented")
-        if len(self.json.get('interfaces')) != 0:
-            raise Exception("Inferfaces are not implemented")
+        self.parse_interfaces()
         self.parse_fields()
         self.parse_methods()
 
-    
+    def parse_interfaces(self):
+        self.interfaces = []
+        for i in self.json.get('interfaces'):
+            name = i.get('name')
+            interface_package, name = parse_file_name(name)
+            self.parent.add_import(interface_package, f"{interface_package}/{name}")
+            type = None
+            try: 
+                if i.get('args')[0].get('kind') == "simple":
+                    argument_package, type = parse_file_name(i.get('args')[0].get('type').get('name'))
+                    self.parent.add_import(argument_package, f"{argument_package}/{type}")
+                    self.interfaces.append(java_interface(name, type))
+                else:
+                    raise Exception("Unhandled interface situation")
+            except:
+                raise Exception("Unhandled interface situation")
+
     def parse_access(self):
         # A class itself can only be public or default (no modifier)
         # Source:  https://www.tutorialspoint.com/can-we-declare-a-top-level-class-as-protected-or-private-in-java
@@ -141,19 +170,24 @@ class java_class:
             # Get the name of the field
             field_name = f.get('name')
             field_type = f.get('type')
+            # Parse access
+            access = " ".join(f.get('access'))
+            #for a in f.get("access"):
+            #    access = access + " " + a
             # TODO: Check if field is not class or if it has args or annotations
-            if field_type.get('kind') != "class" or len(field_type.get('args')) != 0 or len(field_type.get('annotations')) != 0:
+            if "base" in field_type:
+                field_type = f.get('type').get('base')
+            elif "kind" in field_type and field_type.get("kind") == "class":
+                # Parse the field path and type
+                type_name = f.get('type').get('name')
+                field_path, field_type = parse_file_name(type_name)
+                # Add an import if the other class isn't in the same folder
+                self.parent.add_import(field_path ,type_name)
+            else:
+                # TODO Currently doesn't handle field_type without args or annotations
                 print("Unhandled field situation!")
-            # Parse the field path and type
-            type_name = f.get('type').get('name')
-            field_path, field_type = parse_file_name(type_name)
-            # Add an import if the other class isn't in the same folder
-            self.parent.add_import(field_path ,type_name)
-            
-            access = ""
-            for a in f.get("access"):
-                access = access + " " + a
-            
+        
+            # Parse value of field
             val = f.get("value")
             value = ""
             if val is  not None:
@@ -184,6 +218,17 @@ class java_class:
             res = res + m.export_method() + "\n"
 
         return res+ "}"
+    
+class java_interface:
+    def __init__(self, name, type = None):
+        self.name = name
+        self.type = type
+    
+    def export_interface(self):
+        if self.type is not None:
+            return f"{self.name}<{self.type}>"
+        else:
+            return f"{self.name}"
         
 class java_field:
     def __init__(self, name, type, access, value):
@@ -262,8 +307,11 @@ class java_method:
         latest_cmp = None
 
         if self.function_name == "<init>":
-            # Skip first two instructions if init
-            bytecode = self.code.get('bytecode')[2:]
+            # Skip first two instructions of init, unless it's inner method, then five
+            if self.parent.parent.is_innerclass:
+                bytecode = self.code.get('bytecode')[5:]
+            else:
+                bytecode = self.code.get('bytecode')[2:]
         else:
             bytecode = self.code.get('bytecode')
            
@@ -373,7 +421,7 @@ class java_method:
 
                     else:
                         type = bc.get("type")
-                        value = stack_elem
+                        value = stack_elem[2].get('value')
 
                    
                     new = False
@@ -394,7 +442,7 @@ class java_method:
                         self.method_body.append(text)
                     
                 case "push":
-                    self.stack.append(bc.get("value"))
+                    self.stack.append(("","",bc.get("value")))
                 case "binary":
                     type = bc.get("operant")
                     b = self.stack.pop()
@@ -513,7 +561,7 @@ class java_method:
                             # pop potential arguments
                             args = []
                             for i in range(len(bc.get("method").get("args"))):
-                                a = self.stack.pop()
+                                (_,_,a) = self.stack.pop()
                                 a = parse_to_string(a)
                                 args.append(a)
                             ref = self.stack.pop()
@@ -551,6 +599,8 @@ class java_method:
                         if lhs == "":
                             field_name = bc.get("field").get("name")
                             field_name_found = False
+                            if rhs == "":
+                                rhs = ref.get('value')
                             for field in self.parent.fields:
                                 if field.name == field_name:
                                     field.value = rhs
@@ -582,6 +632,7 @@ class java_method:
                     target = bc.get("target")
                     target_bc = bytecode[target-1]
                     if target_bc.get('opr') == "goto":
+                        # TODO "Remove" target bc by making it null or something
                         t = target_bc.get('target')
                         if t < curpos:
                             loop = True
@@ -641,7 +692,7 @@ class java_method:
                 case "return":
                     if bc.get("type") == None:
                         continue
-                    text = self.stack.pop()
+                    (_,_,text) = self.stack.pop()
                     text = parse_to_string(text)
                     text = "return " + text + ";"
                     if len(Cmpopr) != 0:
