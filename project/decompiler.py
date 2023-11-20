@@ -29,6 +29,9 @@ def parse_to_string(v):
     if isinstance(v,str):
         return v
     
+    if isinstance(v, int):
+        return str(v)
+    
     t = v.get("type")
     v = v.get("value")
     if t == "string":
