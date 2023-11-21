@@ -4,22 +4,14 @@ class Array {
 
     
     public static int first(int[] vals) {
-        if(true){
-            vals = new int[3];
-        } else {
-            int[][] n_vals = new int[3][3];
-        }
+        vals = new int[3];
         return vals[0];
     }
 
     
     public static int access(int i, int[] vals) {
-        if (i == 0){
-            int n_vals[][] = {{1, 2}, {3, 4}, {5, 6}};
-        } else if (i == 1){
-            i = 0;
-        }
-        return vals[i];
+        int n_vals[][] = {{1, 2}, {3, 4}, {5, 6}};
+        return 1;
     }
 
     
@@ -64,7 +56,7 @@ class Array {
 
     
     public static int aWierdOneWithinBounds() {
-        int vals[] = {0,1,4};
-        return vals[vals[1]];
+        int vals[][] = new int[3][3];
+        return 1;
     }
 }

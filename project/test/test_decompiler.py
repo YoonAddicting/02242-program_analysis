@@ -142,6 +142,43 @@ class TestDtuDepsTricky(AllTests):
         files = ["simple/Example.json", "simple/Other.json","util/Utils.json", "tricky/Tricky.json"]
         self.compare_files(res_dir, i_dir, files)
 
+class TestExecJava(AllTests):
+    def initial_self_compile_and_decompile(self):
+        sc_path = "ass05/course-02242-examples/src/executables/java/"
+        self.compile_source(sc_path, [sc_path+"dtu/compute/exec/Array.java"])
+        out_path = "ass05/course-02242-examples/decompiled/"
+        self.generate_json(sc_path, out_path)
+        self.clean_up_class_files(sc_path)
+        self.decompile_dirs([out_path+"dtu/compute/exec/"])
+        
+    def test_decompile_executable_source(self):
+        self.initial_self_compile_and_decompile()
+        res_dir = "project/res/executables/java/"
+        # Compile res_dir
+        files = glob.glob(res_dir+"**/*.java", recursive=True)
+        self.compile_source(res_dir, files)
+        # Create json of res
+        self.generate_json(res_dir)
+        # decompile res_dir
+        self.decompile_dirs([res_dir], "project/res2")
+        # compare res_dir and res2_dir
+        res2_dir = "project/res2/executables/java/"
+        files = ["dtu/compute/exec/Array.java"]
+        self.compare_files(res_dir, res2_dir, files)
+        
+        pass
+    def test_decompile_executeable_json(self):
+        self.initial_self_compile_and_decompile()
+        res_dir = "project/res/executables/java/"
+        # Compile res_dir
+        files = glob.glob(res_dir+"**/*.java", recursive=True)
+        self.compile_source(res_dir, files)
+        # Create json of res
+        self.generate_json(res_dir)
+        # compare json files
+        i_dir = "ass05/course-02242-examples/decompiled/executables/java/"
+        files = ["dtu/compute/exec/Array.java"]
+        self.compare_files(res_dir, i_dir, files)
 if __name__ == "__main__":
     unittest.main()
 

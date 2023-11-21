@@ -25,10 +25,27 @@ def parse_file_name(file_name) -> (str, str):
         package = package_opt.group()
     
     return package, name
+def parse_type(a):
+    res = ""
+    t = a.get("kind")
+    while t == 'array':
+        res += "[]"
+        a = a.get("type")
+        t = a.get("kind")
+    return a.get("base")+res
 def parse_to_string(v):
     if isinstance(v,str):
         return v
+    if isinstance(v, int):
+        return v
     
+    if isinstance(v, list):
+        new = [parse_to_string(e) for e in v]
+        arr = "{"
+        arr += ", ".join([str(a) for a in new])
+        arr += "}"
+        return arr
+        
     t = v.get("type")
     v = v.get("value")
     if t == "string":
@@ -257,6 +274,7 @@ class java_method:
         Cmpopr = []
         # for ease of use
         latest_cmp = None
+        arrays = []
 
         if self.function_name == "<init>":
             # Skip first two instructions if init
@@ -281,8 +299,6 @@ class java_method:
                 code += "\n"+"\t"*nest+"}"
                 if element.cont:
                     code += " else "
-                else:
-                    code += "\n" 
                 
                 # If there are still conditionals load into latest
                 if len(Cmpopr) != 0:
@@ -294,7 +310,8 @@ class java_method:
                 
                 if element.cont:
                     t = bytecode[curpos-1].get("target")
-                    Cmpopr.append(c(t, "", False, False))
+                    Cmpopr.append(condition(t, "", False, False))
+                    latest_cmp = Cmpopr[-1]
 
             opr = bc.get('opr')
             match opr:
@@ -348,10 +365,30 @@ class java_method:
                 case "store":
                     index = bc.get("index")
                     stack_elem = self.stack.pop()
+                    
 
                     # if the element is ref
                     if bc.get('type') == "ref":
-                        if not isinstance(stack_elem, str):
+                        if isinstance(stack_elem, int):
+                            arr = arrays[stack_elem]                        
+                            i = 1
+                            a = arr[0]
+                            while isinstance(a, list):
+                                i += 1
+                                a = a[0]
+                            t = str(type(a))
+                            t = re.search("(?<=').*(?=')", t).group(0)
+                            typ = f"{t}{"[]"*i}"
+
+                            if arr == len(arr)*[0]:
+                                value = f"new {t}[{len(arr)}]"
+                            else:
+                                value = parse_to_string(arr)
+                                #value = value.replace("[","{")
+                                #value = value.replace("]","}")
+                            arrays[stack_elem] = None
+                                
+                        else:
                             if len(stack_elem) == 2:
                                 lhs = ""
                                 (rhs, ref) = stack_elem
@@ -363,13 +400,11 @@ class java_method:
                             
                             self.parent.parent.add_import(package_name, f"{package_name}/{class_name}")
                     
-                            type = f"{class_name}"
+                            typ = f"{class_name}"
                             value = f"{rhs}"
-                        else:
-                            type = f"[]"
-
+                        
                     else:
-                        type = bc.get("type")
+                        typ = bc.get("type")
                         value = stack_elem
 
                    
@@ -381,7 +416,7 @@ class java_method:
                         
                     value = parse_to_string(value)
                     if new:
-                        text = f"{type} {self.locals[index]} = {value};"
+                        text = f"{typ} {self.locals[index]} = {value};"
                     else:
                         text = f"{self.locals[index]} = {value};"
                     
@@ -393,13 +428,13 @@ class java_method:
                 case "push":
                     self.stack.append(bc.get("value"))
                 case "binary":
-                    type = bc.get("operant")
+                    typ = bc.get("operant")
                     b = self.stack.pop()
                     a = self.stack.pop()
                     a = parse_to_string(a)
                     b = parse_to_string(b)
                     
-                    match type:
+                    match typ:
                         case "add":
                             self.stack.append(f"({a}) + ({b})")
                         case "sub":
@@ -416,9 +451,9 @@ class java_method:
                     index = bc.get("index")
                     amount = bc.get("amount")
                     if amount < 0:
-                        code = f"{self.locals[index]} -= {abs(amount)}"
+                        code = f"{self.locals[index]} -= {abs(amount)};"
                     else:
-                        code = f"{self.locals[index]} += {amount}"
+                        code = f"{self.locals[index]} += {amount};"
                     
                     if len(Cmpopr) != 0:
                         latest_cmp.body.append(code)
@@ -428,10 +463,13 @@ class java_method:
                     a = self.stack.pop()
                     self.stack.append(f"-({a})")
                 case "bitopr":
-                    type = bc.get("operant")
+                    typ = bc.get("operant")
                     b = self.stack.pop()
                     a = self.stack.pop()
-                    match type:
+                    b = parse_to_string(b)
+                    a = parse_to_string(a)
+
+                    match typ:
                         case "shl":
                             self.stack.append(f"({a}) << ({b})")
                         case "shr":
@@ -450,28 +488,42 @@ class java_method:
                     index = self.stack.pop()
                     ref = self.stack.pop()
                     index = parse_to_string(index)
-                        
+                    
                     self.stack.append(f"{ref}[{index}]")
                 case "array_store":
                     value = self.stack.pop()
                     index = self.stack.pop()
-                    value = parse_to_string(value)
-                    index = parse_to_string(index)
                     ref = self.stack.pop()
-                    code = f"{ref}[{index}] = {value};"
-                    if len(Cmpopr) != 0:
-                        latest_cmp.body.append(code)
+                    if isinstance(ref, int):
+                        index = index.get("value")
+                        if isinstance(value,int):
+                            value = arrays[value]
+                        elif not isinstance(value, str):
+                            value = value.get("value")
+                        arrays[ref][index] = value
                     else:
-                        self.method_body.append(code)
+                        value = parse_to_string(value)
+                        index = parse_to_string(index)
+                        code = f"{ref}[{index}] = {value};"
+                        if len(Cmpopr) != 0:
+                            latest_cmp.body.append(code)
+                        else:
+                            self.method_body.append(code)
                 case "newarray":
                     dim = bc.get("dim")
-                    name = self.generate_variable_name()
+
+                    index = len(arrays)
+
+                    typ = parse_to_string(bc.get("type"))
                     for i in range(dim):
-                        self.stack.pop()
-                    self.stack.append(name)
+                        a = self.stack.pop().get("value")
+                        if i == 0:
+                            arrays.append([0]*a)
+
+                    self.stack.append(index)
                 case "arraylength":
-                    array = self.stack.pop()
-                    self.stack.append(f"{array}.length")
+                    arr = self.stack.pop()
+                    self.stack.append(f"{arr}.length")
                 case "invoke":
                     access = bc.get('access')
                     match access:
@@ -596,16 +648,16 @@ class java_method:
                     else:
                         self.method_body.append(text)
                 case "goto":
-                    # TODO handle break statements
-                    # TODO handle continue statements
+                    
+                    
                     # TODO handle if else
                     
                     target = bc.get("target")
                     
                     if target < curpos:
-                        latest_cmp.body.append("continue;\n")
+                        latest_cmp.body.append("continue;")
                     else:
-                        latest_cmp.body.append("break;\n")
+                        latest_cmp.body.append("break;")
                     """if target < curpos:
                         if latest_cmp.loop:
                             # Does not work
@@ -662,7 +714,7 @@ class java_method:
         if self.return_type == None:
             res += " void "
         else:
-            res += " " + self.return_type.get("base") + " "
+            res += " " + parse_type(self.return_type) + " "
         
         res += f"{self.function_name}("
         parsed_arguments = []
@@ -723,13 +775,13 @@ if __name__ == '__main__':
     #os.chdir("project")
     
     
-    #decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
+    decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
     #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/simple/')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/util/')
-    decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/tricky/')
+    #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/tricky/')
     #decompile_file('ass05/course-02242-examples/decompiled/dtu/compute/exec/Calls.json')
-    #decompile_file('ass05/course-02242-examples/src/executables/java/dtu/compute/exec/Array.json')
+    decompile_file('ass05/course-02242-examples/src/executables/java/dtu/compute/exec/Array.json')
     
     #decompile_dir('project/res0/dtu/deps/simple/')
     #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/tricky/Tricky.json')
