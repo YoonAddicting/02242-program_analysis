@@ -25,57 +25,8 @@ def parse_file_name(file_name) -> (str, str):
         package = package_opt.group()
     
     return package, name
-def parse_type(a):
-    res = ""
-    t = a.get("kind")
-    while t == 'array':
-        res += "[]"
-        a = a.get("type")
-        t = a.get("kind")
-    return a.get("base")+res
-def parse_to_string(v):
-    if isinstance(v,str):
-        return v
-    if isinstance(v, int):
-        return v
-    
-    if isinstance(v, list):
-        new = [parse_to_string(e) for e in v]
-        arr = "{"
-        arr += ", ".join([str(a) for a in new])
-        arr += "}"
-        return arr
-        
-    t = v.get("type")
-    v = v.get("value")
-    if t == "string":
-        
-        v = repr(v)
-        v = v.replace("'", '"') 
-    return str(v)
 
-def parse_condition(str):
-    match str:
-        case "eq":
-           return "!="
-        case "ne":
-           return "=="
-        case "lt":
-           return ">="
-        case "ge":
-           return "<"
-        case "gt":
-           return "<="
-        case "le":
-           return ">"
-        case _:
-            raise Exception(f"condition not defined")
-""" 
-        case "is":
-           raise
-        case "isnot":
-            pass
-"""
+
 class condition:
     def __init__(self, target, cond, loop, cont):
         self.target = target
@@ -227,6 +178,80 @@ class java_method:
         self.code = json.get("code")
         self.annotations = json.get("annotations")
         self.parse_code()
+    
+    def parse_type_to_string(a):
+        res = ""
+        t = a.get("kind")
+        while t == 'array':
+            res += "[]"
+            a = a.get("type")
+            t = a.get("kind")
+        return a.get("base")+res
+    
+    def parse_to_string(v):
+        if isinstance(v,str):
+            return v
+        if isinstance(v, int):
+            return v
+        
+        if isinstance(v, list):
+            new = [java_method.parse_to_string(e) for e in v]
+            arr = "{"
+            arr += ", ".join([str(a) for a in new])
+            arr += "}"
+            return arr
+            
+        t = v.get("type")
+        v = v.get("value")
+        if t == "string":
+            
+            v = repr(v)
+            v = v.replace("'", '"') 
+        return str(v)
+    
+    def parse_condition(str):
+        match str:
+            case "eq":
+                return "!="
+            case "ne":
+                return "=="
+            case "lt":
+                return ">="
+            case "ge":
+                return "<"
+            case "gt":
+                return "<="
+            case "le":
+                return ">"
+            case _:
+                raise Exception(f"condition not defined")
+    
+    def parse_typ(typ):
+        match typ:
+            case "add":
+                return "+"
+            case "sub":
+                return "-"
+            case "mul":
+                return "*"
+            case "div":
+                return "/"
+            case "rem":
+                return "%"
+            case "shl":
+                return "<<"
+            case "shr":
+                return ">>"
+            case "ushr":
+                return ">>>"
+            case "and":
+                return "&"
+            case "or":
+                return "|"
+            case "xor":
+                return "^"
+            case _:
+                raise Exception("operation not recognized")
 
     def generate_variable_name(self) -> str:
         old_number = self.variable_number
@@ -284,17 +309,21 @@ class java_method:
            
         for (curpos, bc) in enumerate(bytecode):
             # If the current conditional is done
+            if bc is "":
+                continue
             if len(Cmpopr) != 0 and latest_cmp.target == curpos:
                 # Build the code output
                 code = ""
                 nest = len(Cmpopr)
 
                 element = Cmpopr.pop()
-                if element.loop:
-                    code += "while "
-                elif element.cond !="":
+                if element.cond !="":
+                    if element.loop:
+                        code += "while "
+                    else:
                         code += "if "
-                code += "(" + element.cond + ") {\n"+"\t"*(nest+1)
+                    code += "(" + element.cond + ")"
+                code += " {\n"+"\t"*(nest+1)
                 code += ("\n"+"\t"*(nest+1)).join(element.body)
                 code += "\n"+"\t"*nest+"}"
                 if element.cont:
@@ -307,11 +336,6 @@ class java_method:
                 else:
                     latest_cmp = None
                     self.method_body.append(code)
-                
-                if element.cont:
-                    t = bytecode[curpos-1].get("target")
-                    Cmpopr.append(condition(t, "", False, False))
-                    latest_cmp = Cmpopr[-1]
 
             opr = bc.get('opr')
             match opr:
@@ -383,9 +407,7 @@ class java_method:
                             if arr == len(arr)*[0]:
                                 value = f"new {t}[{len(arr)}]"
                             else:
-                                value = parse_to_string(arr)
-                                #value = value.replace("[","{")
-                                #value = value.replace("]","}")
+                                value = java_method.parse_to_string(arr)
                             arrays[stack_elem] = None
                                 
                         else:
@@ -414,7 +436,7 @@ class java_method:
                         new = True
                     
                         
-                    value = parse_to_string(value)
+                    value = java_method.parse_to_string(value)
                     if new:
                         text = f"{typ} {self.locals[index]} = {value};"
                     else:
@@ -427,26 +449,15 @@ class java_method:
                     
                 case "push":
                     self.stack.append(bc.get("value"))
-                case "binary":
+                case "binary" | "bitopr":
                     typ = bc.get("operant")
                     b = self.stack.pop()
                     a = self.stack.pop()
-                    a = parse_to_string(a)
-                    b = parse_to_string(b)
+                    a = java_method.parse_to_string(a)
+                    b = java_method.parse_to_string(b)
+                    typ = java_method.parse_typ(typ)
+                    self.stack.append(f"({a}) {typ} ({b})")
                     
-                    match typ:
-                        case "add":
-                            self.stack.append(f"({a}) + ({b})")
-                        case "sub":
-                            self.stack.append(f"({a}) - ({b})")
-                        case "mul":
-                            self.stack.append(f"({a}) * ({b})")
-                        case "div":
-                            self.stack.append(f"({a}) / ({b})")
-                        case "rem":
-                            self.stack.append(f"({a}) % ({b})")
-                        case _:
-                            raise Exception("operation not recognized")
                 case "incr":
                     index = bc.get("index")
                     amount = bc.get("amount")
@@ -462,32 +473,10 @@ class java_method:
                 case  "negate":
                     a = self.stack.pop()
                     self.stack.append(f"-({a})")
-                case "bitopr":
-                    typ = bc.get("operant")
-                    b = self.stack.pop()
-                    a = self.stack.pop()
-                    b = parse_to_string(b)
-                    a = parse_to_string(a)
-
-                    match typ:
-                        case "shl":
-                            self.stack.append(f"({a}) << ({b})")
-                        case "shr":
-                            self.stack.append(f"({a}) >> ({b})")
-                        case "ushr":
-                            self.stack.append(f"({a}) >>> ({b})")
-                        case "and":
-                            self.stack.append(f"({a}) & ({b})")
-                        case "or":
-                            self.stack.append(f"({a}) | ({b})")
-                        case "xor":
-                            self.stack.append(f"({a}) ^ ({b})")
-                        case _:
-                            raise Exception("Logic operation not recognized")
                 case "array_load":
                     index = self.stack.pop()
                     ref = self.stack.pop()
-                    index = parse_to_string(index)
+                    index = java_method.parse_to_string(index)
                     
                     self.stack.append(f"{ref}[{index}]")
                 case "array_store":
@@ -502,8 +491,8 @@ class java_method:
                             value = value.get("value")
                         arrays[ref][index] = value
                     else:
-                        value = parse_to_string(value)
-                        index = parse_to_string(index)
+                        value = java_method.parse_to_string(value)
+                        index = java_method.parse_to_string(index)
                         code = f"{ref}[{index}] = {value};"
                         if len(Cmpopr) != 0:
                             latest_cmp.body.append(code)
@@ -514,7 +503,7 @@ class java_method:
 
                     index = len(arrays)
 
-                    typ = parse_to_string(bc.get("type"))
+                    typ = java_method.parse_to_string(bc.get("type"))
                     for i in range(dim):
                         a = self.stack.pop().get("value")
                         if i == 0:
@@ -533,7 +522,7 @@ class java_method:
                                 args = []
                                 for i in range(len(bc.get("method").get("args"))):
                                     a = self.stack.pop()
-                                    a = parse_to_string(a)
+                                    a = java_method.parse_to_string(a)
                                     args.append(a)
 
                                 package_name, class_name = parse_file_name(bc.get('method').get('ref').get('name'))
@@ -563,7 +552,7 @@ class java_method:
                             args = []
                             for i in range(len(bc.get("method").get("args"))):
                                 a = self.stack.pop()
-                                a = parse_to_string(a)
+                                a = java_method.parse_to_string(a)
                                 args.append(a)
                             ref = self.stack.pop()
                             method_name = bc.get("method").get("name")
@@ -618,12 +607,12 @@ class java_method:
                     # Make condition text
                     c = bc.get("condition")
                     a = self.stack.pop()
-                    a = parse_to_string(a)
+                    a = java_method.parse_to_string(a)
                     b = 0
                     if opr == "if":
                         b = self.stack.pop()
-                        b = parse_to_string(b)
-                    cond_text = f"({b}) {parse_condition(c)} ({a})" 
+                        b = java_method.parse_to_string(b)
+                    cond_text = f"({b}) {java_method.parse_condition(c)} ({a})" 
 
                     # Determine if it is loop or if else
                     loop = False
@@ -636,6 +625,8 @@ class java_method:
                             loop = True
                         else:
                             cont = True
+                        bytecode[target-1] = ""
+                        
 
                     cond = condition(target, cond_text, loop, cont)
                     Cmpopr.append(cond)
@@ -647,35 +638,13 @@ class java_method:
                         latest_cmp.body.append(text)
                     else:
                         self.method_body.append(text)
-                case "goto":
-                    
-                    
-                    # TODO handle if else
-                    
+                case "goto":    
                     target = bc.get("target")
-                    
+
                     if target < curpos:
                         latest_cmp.body.append("continue;")
                     else:
                         latest_cmp.body.append("break;")
-                    """if target < curpos:
-                        if latest_cmp.loop:
-                            # Does not work
-                            # latest_cmp.body.append("continue") 
-                            pass
-                        else:
-                            for e in Cmpopr:
-                                if e.start < target:
-                                    pass
-                            pass
-                    else:                  
-                        # either break or if else
-                        # if target exists in cmpopr
-                        #  --> write break
-                        # else:
-                        # next_cmp = target
-                        pass
-                    """
 
                 case "get":
                     package_name, class_name = parse_file_name(bc.get('field').get('class'))
@@ -691,7 +660,7 @@ class java_method:
                     if bc.get("type") == None:
                         continue
                     text = self.stack.pop()
-                    text = parse_to_string(text)
+                    text = java_method.parse_to_string(text)
                     text = "return " + text + ";"
                     if len(Cmpopr) != 0:
                         latest_cmp.body.append(text)
@@ -714,7 +683,7 @@ class java_method:
         if self.return_type == None:
             res += " void "
         else:
-            res += " " + parse_type(self.return_type) + " "
+            res += " " + java_method.parse_type_to_string(self.return_type) + " "
         
         res += f"{self.function_name}("
         parsed_arguments = []
@@ -775,7 +744,7 @@ if __name__ == '__main__':
     #os.chdir("project")
     
     
-    decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
+    #decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
     #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/simple/')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/util/')

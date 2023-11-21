@@ -4,7 +4,12 @@ class Array {
 
     
     public static int first(int[] vals) {
-        vals = new int[3];
+        if (vals.length == 3){
+            vals[2] = 4;
+        } else if (vals[0] > 0){
+            vals = new int[3];
+        }
+
         return vals[0];
     }
 
