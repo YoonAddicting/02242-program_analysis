@@ -224,7 +224,7 @@ class java_method:
         self.annotations = json.get("annotations")
         self.parse_code()
     
-    def parse_type_to_string(a):
+    def parse_type_to_string(self, a):
         res = ""
         t = a.get("kind")
         while t == 'array':
@@ -233,14 +233,14 @@ class java_method:
             t = a.get("kind")
         return a.get("base")+res
     
-    def parse_to_string(v):
+    def parse_to_string(self, v):
         if isinstance(v,str):
             return v
         if isinstance(v, int):
             return v
         
         if isinstance(v, list):
-            new = [java_method.parse_to_string(e) for e in v]
+            new = [self.parse_to_string(e) for e in v]
             arr = "{"
             arr += ", ".join([str(a) for a in new])
             arr += "}"
@@ -254,7 +254,7 @@ class java_method:
             v = v.replace("'", '"') 
         return str(v)
     
-    def parse_condition(str):
+    def parse_condition(self, str):
         match str:
             case "eq":
                 return "!="
@@ -271,7 +271,7 @@ class java_method:
             case _:
                 raise Exception(f"condition not defined")
     
-    def parse_typ(typ):
+    def parse_typ(self, typ):
         match typ:
             case "add":
                 return "+"
@@ -357,7 +357,7 @@ class java_method:
            
         for (curpos, bc) in enumerate(bytecode):
             # If the current conditional is done
-            if bc is "":
+            if bc == "":
                 continue
             if len(Cmpopr) != 0 and latest_cmp.target == curpos:
                 # Build the code output
@@ -450,12 +450,16 @@ class java_method:
                                 a = a[0]
                             t = str(type(a))
                             t = re.search("(?<=').*(?=')", t).group(0)
-                            typ = f"{t}{"[]"*i}"
+                            typ = f'{t}{"[]"*i}'
 
                             if arr == len(arr)*[0]:
                                 value = f"new {t}[{len(arr)}]"
+                            elif i > 1 and all(0 in sublist for sublist in arr):
+                                # Multi dimensional array
+                                brack = i*f"[{len(arr)}]"
+                                value = f"new {t}{brack}"
                             else:
-                                value = java_method.parse_to_string(arr)
+                                value = self.parse_to_string(arr)
                             arrays[stack_elem] = None
                                 
                         else:
@@ -478,7 +482,9 @@ class java_method:
                         if isinstance(stack_elem,str):
                             value = stack_elem
                         elif len(stack_elem)==3:
-                            value = stack_elem[2].get('value')
+                            (_,_,value) = stack_elem
+                            if not isinstance(value, str):
+                                value = value.get("value")
                         else:
                             value = stack_elem.get('value')
 
@@ -489,7 +495,7 @@ class java_method:
                         new = True
                     
                         
-                    value = java_method.parse_to_string(value)
+                    value = self.parse_to_string(value)
                     if new:
                         text = f"{typ} {self.locals[index]} = {value};"
                     else:
@@ -501,14 +507,21 @@ class java_method:
                         self.method_body.append(text)
                     
                 case "push":
-                    self.stack.append(bc.get("value"))
+                    self.stack.append(("","", bc.get("value")))
+                    #self.stack.append(bc.get("value"))
                 case "binary" | "bitopr":
                     typ = bc.get("operant")
                     b = self.stack.pop()
                     a = self.stack.pop()
-                    a = java_method.parse_to_string(a)
-                    b = java_method.parse_to_string(b)
-                    typ = java_method.parse_typ(typ)
+                    if type(a) is tuple:
+                        (_,_,a) = a
+                        a = a.get("value")
+                    if type(b) is tuple:
+                        (_,_,b) = b
+                        b = b.get("value")
+                    a = self.parse_to_string(a)
+                    b = self.parse_to_string(b)
+                    typ = self.parse_typ(typ)
                     self.stack.append(f"({a}) {typ} ({b})")
                     
                 case "incr":
@@ -528,24 +541,36 @@ class java_method:
                     self.stack.append(f"-({a})")
                 case "array_load":
                     index = self.stack.pop()
+
+                    if type(index) is tuple:
+                        (_,_,index) = index
+                        if type(index) is dict:
+                            index = index.get("value")
+
                     ref = self.stack.pop()
-                    index = java_method.parse_to_string(index)
+                    index = self.parse_to_string(index)
                     
-                    self.stack.append(f"{ref}[{index}]")
+                    self.stack.append(("","",f"{ref}[{index}]"))
                 case "array_store":
                     value = self.stack.pop()
+                    if type(value) is tuple:
+                        (_,_,value) = value
+                    if bc.get('type') == "ref":
+                        if type(value) is dict:
+                            value = value.get("value")
+                        value = arrays[value]
+                    elif not isinstance(value, str):
+                        value = value.get("value")
                     index = self.stack.pop()
+                    if type(index) is tuple:
+                        (_,_,index) = index
+                        index = index.get("value")
                     ref = self.stack.pop()
                     if isinstance(ref, int):
-                        index = index.get("value")
-                        if isinstance(value,int):
-                            value = arrays[value]
-                        elif not isinstance(value, str):
-                            value = value.get("value")
                         arrays[ref][index] = value
                     else:
-                        value = java_method.parse_to_string(value)
-                        index = java_method.parse_to_string(index)
+                        value = self.parse_to_string(value)
+                        index = self.parse_to_string(index)
                         code = f"{ref}[{index}] = {value};"
                         if len(Cmpopr) != 0:
                             latest_cmp.body.append(code)
@@ -556,11 +581,14 @@ class java_method:
 
                     index = len(arrays)
 
-                    typ = java_method.parse_to_string(bc.get("type"))
                     for i in range(dim):
-                        a = self.stack.pop().get("value")
+                        (_,_,a) = self.stack.pop()
+                        a = a.get("value")
                         if i == 0:
                             arrays.append([0]*a)
+                        else:
+                            for i in range(len(arrays[index])):
+                                arrays[index][i] = [0]*a
 
                     self.stack.append(index)
                 case "arraylength":
@@ -575,7 +603,7 @@ class java_method:
                                 args = []
                                 for i in range(len(bc.get("method").get("args"))):
                                     a = self.stack.pop()
-                                    a = java_method.parse_to_string(a)
+                                    a = self.parse_to_string(a)
                                     args.append(a)
 
                                 package_name, class_name = parse_file_name(bc.get('method').get('ref').get('name'))
@@ -605,7 +633,7 @@ class java_method:
                             args = []
                             for i in range(len(bc.get("method").get("args"))):
                                 (_,_,a) = self.stack.pop()
-                                a = java_method.parse_to_string(a)
+                                a = self.parse_to_string(a)
                                 args.append(a)
                             ref = self.stack.pop()
                             method_name = bc.get("method").get("name")
@@ -662,12 +690,18 @@ class java_method:
                     # Make condition text
                     c = bc.get("condition")
                     a = self.stack.pop()
-                    a = java_method.parse_to_string(a)
+                    if type(a) is tuple:
+                        (_,_,a) = a
+                    a = self.parse_to_string(a)
                     b = 0
                     if opr == "if":
                         b = self.stack.pop()
-                        b = java_method.parse_to_string(b)
-                    cond_text = f"({b}) {java_method.parse_condition(c)} ({a})" 
+                        if type(b) is tuple:
+                            (_,_,b) = b
+                        b = self.parse_to_string(b)
+                    if opr == "ifz":
+                        a, b = b, a
+                    cond_text = f"({b}) {self.parse_condition(c)} ({a})" 
 
                     # Determine if it is loop or if else
                     loop = False
@@ -715,9 +749,8 @@ class java_method:
                 case "return":
                     if bc.get("type") == None:
                         continue
-                    # (_,_,text) = self.stack.pop()
-                    text = self.stack.pop()
-                    text = java_method.parse_to_string(text)
+                    (_,_,text) = self.stack.pop()
+                    text = self.parse_to_string(text)
                     text = "return " + text + ";"
                     if len(Cmpopr) != 0:
                         latest_cmp.body.append(text)
@@ -740,7 +773,7 @@ class java_method:
         if self.return_type == None:
             res += " void "
         else:
-            res += " " + java_method.parse_type_to_string(self.return_type) + " "
+            res += " " + self.parse_type_to_string(self.return_type) + " "
         
         res += f"{self.function_name}("
         parsed_arguments = []
@@ -802,12 +835,12 @@ if __name__ == '__main__':
     
     
     #decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
-    #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/simple/Example.json')
+    #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/util/Utils.json')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/simple/')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/util/')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/tricky/')
     #decompile_file('ass05/course-02242-examples/decompiled/dtu/compute/exec/Calls.json')
-    decompile_file('ass05/course-02242-examples/src/executables/java/dtu/compute/exec/Array.json')
+    decompile_file('ass05/course-02242-examples/decompiled/dtu/compute/exec/Array.json')
     
     #decompile_dir('project/res0/dtu/deps/simple/')
     #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/tricky/Tricky.json')
