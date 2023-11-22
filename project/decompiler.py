@@ -357,7 +357,7 @@ class java_method:
            
         for (curpos, bc) in enumerate(bytecode):
             # If the current conditional is done
-            if bc is "":
+            if bc == "":
                 continue
             if len(Cmpopr) != 0 and latest_cmp.target == curpos:
                 # Build the code output
@@ -509,7 +509,7 @@ class java_method:
                     a = java_method.parse_to_string(a)
                     b = java_method.parse_to_string(b)
                     typ = java_method.parse_typ(typ)
-                    self.stack.append(f"({a}) {typ} ({b})")
+                    self.stack.append(f"({a} {typ} {b})")
                     
                 case "incr":
                     index = bc.get("index")
@@ -667,7 +667,7 @@ class java_method:
                     if opr == "if":
                         b = self.stack.pop()
                         b = java_method.parse_to_string(b)
-                    cond_text = f"({b}) {java_method.parse_condition(c)} ({a})" 
+                    cond_text = f"({b} {java_method.parse_condition(c)} {a})" 
 
                     # Determine if it is loop or if else
                     loop = False
@@ -675,7 +675,6 @@ class java_method:
                     target = bc.get("target")
                     target_bc = bytecode[target-1]
                     if target_bc.get('opr') == "goto":
-                        # TODO "Remove" target bc by making it null or something
                         t = target_bc.get('target')
                         if t < curpos:
                             loop = True
