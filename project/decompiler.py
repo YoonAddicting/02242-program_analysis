@@ -709,7 +709,6 @@ class java_method:
                     target = bc.get("target")
                     target_bc = bytecode[target-1]
                     if target_bc.get('opr') == "goto":
-                        # TODO "Remove" target bc by making it null or something
                         t = target_bc.get('target')
                         if t < curpos:
                             loop = True
