@@ -642,7 +642,9 @@ class java_method:
                             # pop potential arguments
                             args = []
                             for i in range(len(bc.get("method").get("args"))):
-                                (_,_,a) = self.stack.pop()
+                                a = self.stack.pop()
+                                if type(a) is tuple:
+                                    (_,_,a) = a
                                 a = self.parse_to_string(a)
                                 args.append(a)
                             ref = self.stack.pop()
@@ -843,7 +845,7 @@ def decompile_dir(path, res_path = "res"):
 
 if __name__ == '__main__':
     
-    decompile_file('test/originals/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
+    decompile_file('project/test/originals/course-02242-examples/decompiled/dtu/deps/util/Utils.json')
     #decompile_dir('test/originals/course-02242-examples/decompiled/dtu/deps/simple/')
 
     
