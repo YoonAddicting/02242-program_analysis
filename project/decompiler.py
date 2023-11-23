@@ -520,10 +520,12 @@ class java_method:
                     a = self.stack.pop()
                     if type(a) is tuple:
                         (_,_,a) = a
-                        a = a.get("value")
+                        if type(a) is dict:
+                            a = a.get("value")
                     if type(b) is tuple:
                         (_,_,b) = b
-                        b = b.get("value")
+                        if type(b) is dict:
+                            b = b.get("value")
                     a = self.parse_to_string(a)
                     b = self.parse_to_string(b)
                     typ = self.parse_typ(typ)
@@ -753,7 +755,9 @@ class java_method:
                 case "return":
                     if bc.get("type") == None:
                         continue
-                    (_,_,text) = self.stack.pop()
+                    text = self.stack.pop()
+                    if type(text) is tuple:
+                        (_,_,text) = text
                     text = self.parse_to_string(text)
                     text = "return " + text + ";"
                     if len(Cmpopr) != 0:
