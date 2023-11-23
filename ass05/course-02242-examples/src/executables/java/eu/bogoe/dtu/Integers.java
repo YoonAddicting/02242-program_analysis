@@ -1,7 +1,5 @@
 package eu.bogoe.dtu;
 
-import dtu.compute.exec.Case;
-
 public class Integers {
 
     /**
@@ -10,7 +8,6 @@ public class Integers {
      * - istore_<n>
      * - return
      */
-    @Case
     public static void smallConstant() {
         int a = 2;
     }
@@ -21,7 +18,6 @@ public class Integers {
      * - return
      * - sipush
      */
-    @Case
     public static void largeConstant() {
         int a = 1000;
     }
@@ -32,7 +28,6 @@ public class Integers {
      * - ldc
      * - return
      */
-    @Case
     public static void hugeConstant() {
         int a = 2147483647;
     }
@@ -45,7 +40,6 @@ public class Integers {
      * - istore_<n>
      * - return
      */
-    @Case
     public static void manyConstants() {
         int a = 1;
         int b = 2;
@@ -73,7 +67,6 @@ public class Integers {
      * - iushr
      * - ixor
      */
-    @Case
     public static int bitwiseLogic(int a, int b) {
         int and = a & b;
         int or = a | b;
@@ -99,7 +92,6 @@ public class Integers {
      * - istore_<n>
      * - isub
      */
-    @Case
     public static int arithmetic(int a, int b) {
         int add = a + a;
         int sub = b - a;
@@ -121,7 +113,6 @@ public class Integers {
      * - iconst_<i>
      * - newarray
      */
-    @Case
     public static int[] intArray(int[] a) {
         int[] b = new int[]{a[0], a[1]};
         int[] c = new int[2];
