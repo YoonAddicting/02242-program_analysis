@@ -20,7 +20,8 @@ def parse_file_name(file_name) -> (str, str):
         name = name_opt.group()
     
     if package_opt is None:
-        print(f"file {name} has no package")
+        #print(f"file {name} has no package")
+        pass
     else:
         package = package_opt.group()
     
@@ -797,7 +798,7 @@ class java_method:
     
 
     
-def decompile_file(dep, res_path = "project/res"):
+def decompile_file(dep, res_path = "res"):
     file_object = open(dep, 'r')
     file = json.loads(file_object.read())
     
@@ -832,7 +833,7 @@ def decompile_file(dep, res_path = "project/res"):
     
 
 
-def decompile_dir(path, res_path = "project/res"):
+def decompile_dir(path, res_path = "res"):
     
     dir = glob.glob(f'{path}**/*.json',recursive=True)
     for file in dir:
@@ -841,18 +842,8 @@ def decompile_dir(path, res_path = "project/res"):
     
 
 if __name__ == '__main__':
-    #os.chdir("project")
     
-    
-    decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
-    #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/util/Utils.json')
-    #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/simple/')
-    #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/util/')
-    #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/tricky/')
-    #decompile_file('ass05/course-02242-examples/decompiled/dtu/compute/exec/Calls.json')
-    decompile_file('ass05/course-02242-examples/decompiled/dtu/compute/exec/Array.json')
-    
-    #decompile_dir('project/res0/dtu/deps/simple/')
-    #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/tricky/Tricky.json')
+    decompile_file('test/originals/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
+    #decompile_dir('test/originals/course-02242-examples/decompiled/dtu/deps/simple/')
 
     
