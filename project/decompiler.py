@@ -531,7 +531,7 @@ class java_method:
                     a = self.parse_to_string(a)
                     b = self.parse_to_string(b)
                     typ = self.parse_typ(typ)
-                    self.stack.append(f"({a}) {typ} ({b})")
+                    self.stack.append(f"({a} {typ} {b})")
                     
                 case "incr":
                     index = bc.get("index")
@@ -547,7 +547,7 @@ class java_method:
                         self.method_body.append(code)
                 case  "negate":
                     a = self.stack.pop()
-                    self.stack.append(f"-({a})")
+                    self.stack.append(f"-{a}")
                 case "array_load":
                     index = self.stack.pop()
 
@@ -710,7 +710,7 @@ class java_method:
                         b = self.parse_to_string(b)
                     if opr == "ifz":
                         a, b = b, a
-                    cond_text = f"({b}) {self.parse_condition(c)} ({a})" 
+                    cond_text = f"{b} {self.parse_condition(c)} {a}" 
 
                     # Determine if it is loop or if else
                     loop = False
@@ -844,7 +844,7 @@ if __name__ == '__main__':
     #os.chdir("project")
     
     
-    #decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
+    decompile_file('ass05/course-02242-examples/decompiled/eu/bogoe/dtu/Integers.json')
     #decompile_file('ass05/course-02242-examples/decompiled/dtu/deps/util/Utils.json')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/simple/')
     #decompile_dir('ass05/course-02242-examples/decompiled/dtu/deps/util/')
