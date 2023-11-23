@@ -46,7 +46,7 @@ class AllTests(unittest.TestCase):
             os.remove(file)
 
     def decompile_dirs(self, dirs, out_dir):
-        from project.decompiler import decompile_dir
+        from decompiler import decompile_dir
         for i_dir in dirs:
             decompile_dir(i_dir, out_dir)
 
