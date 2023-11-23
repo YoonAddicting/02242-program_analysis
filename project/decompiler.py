@@ -448,9 +448,14 @@ class java_method:
                             while isinstance(a, list):
                                 i += 1
                                 a = a[0]
-                            t = str(type(a))
-                            t = re.search("(?<=').*(?=')", t).group(0)
-                            typ = f'{t}{"[]"*i}'
+                            bc_idx = bytecode.index(bc)
+                            prev_bc = bytecode[bc_idx-1]
+                            if prev_bc.get('opr') == "array_store":
+                                typ = f'{prev_bc.get("type")}{"[]"*i}'
+                            else:
+                                t = str(type(a))
+                                t = re.search("(?<=').*(?=')", t).group(0)
+                                typ = f'{t}{"[]"*i}'
 
                             if arr == len(arr)*[0]:
                                 value = f"new {t}[{len(arr)}]"
