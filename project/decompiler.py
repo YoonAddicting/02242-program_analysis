@@ -449,8 +449,10 @@ class java_method:
                                 i += 1
                                 a = a[0]
                             bc_idx = bytecode.index(bc)
-                            prev_bc = bytecode[bc_idx-1]
+                            # Get the i'th previous bytecode, and check if it is an array_store
+                            prev_bc = bytecode[bc_idx-i]
                             if prev_bc.get('opr') == "array_store":
+                                # If it is, get the type from there.
                                 typ = f'{prev_bc.get("type")}{"[]"*i}'
                             else:
                                 t = str(type(a))
