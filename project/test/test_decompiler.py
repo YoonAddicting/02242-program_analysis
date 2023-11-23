@@ -10,9 +10,12 @@ import os
 class AllTests(unittest.TestCase):
     def check_dir(self):
         current_dir = os.getcwd()
+        current_dir = current_dir.replace("\\", "/")
         if current_dir.split("/")[-1] != "project":
             os.chdir("project")
-        assert(os.getcwd().split("/")[-1] == "project")
+        current_dir = os.getcwd()
+        current_dir = current_dir.replace("\\", "/")
+        assert(current_dir.split("/")[-1] == "project")
 
     def compile_source(self, sc_path, files):
         self.files = files
@@ -35,9 +38,14 @@ class AllTests(unittest.TestCase):
             self.pretty_print_json(target)
             if out_path != "":
                 output = target
+                if os.name == "nt":
+                    target = target.replace("\\","/")
                 target = target.split("/")
                 target = '/'.join(target[-4:])
                 target = out_path+target
+                if os.name == "nt":
+                    target = target.replace("/","\\")
+                    output = output.replace("/", "\\")
                 shutil.move(output, target)
         
     def clean_up_class_files(self, sc_path):
